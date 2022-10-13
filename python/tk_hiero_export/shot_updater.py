@@ -67,6 +67,7 @@ class ShotgunShotUpdater(
             # frames for insuffient tail handles. so we don't need to account
             # for that case here.
 
+        #TODO MB: adjust transcode ref here
         # "cut_length" is a boolean set on the updater by the shot processor.
         # it signifies whether the transcode task will write the cut length
         # to disk (True) or if it will write the full source to disk (False)

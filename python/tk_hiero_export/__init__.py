@@ -48,11 +48,12 @@ from .sg_shot_processor import (
 )
 
 from .shot_updater import ShotgunShotUpdater, ShotgunShotUpdaterPreset
-from .version_creator import (
+from .sg_transcode import (
     ShotgunTranscodeExporterUI,
     ShotgunTranscodeExporter,
     ShotgunTranscodePreset,
 )
+#TODO MB: Add in ShotgunCopyExporter/ShotgunSymlinkExporter refs
 from .sg_nuke_shot_export import (
     ShotgunNukeShotExporterUI,
     ShotgunNukeShotExporter,
