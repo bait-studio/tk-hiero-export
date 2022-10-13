@@ -78,7 +78,7 @@ class ShotgunSymLinkExporterUI(
             middle.setLayout(QtGui.QVBoxLayout())
 
         # populate the middle with the standard layout
-        FnSymLinkExporter.SymLinkExporterUI.populateUI(
+        FnSymLinkExporterUI.SymLinkExporterUI.populateUI(
             self, middle, exportTemplate
         )
 
