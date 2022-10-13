@@ -48,7 +48,7 @@ from .sg_shot_processor import (
 )
 
 from .shot_updater import ShotgunShotUpdater, ShotgunShotUpdaterPreset
-from .sg_transcode import (
+from .sg_transcode_exporter import (
     ShotgunTranscodeExporterUI,
     ShotgunTranscodeExporter,
     ShotgunTranscodePreset,

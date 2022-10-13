@@ -33,7 +33,7 @@ except ImportError:
     ShotProcessorUI = FnShotProcessor.ShotProcessor
 
 from .base import ShotgunHieroObjectBase
-from .sg_transcode import ShotgunTranscodeExporter
+from .sg_transcode_exporter import ShotgunTranscodeExporter
 from .shot_updater import ShotgunShotUpdaterPreset
 from .shot_updater import ShotgunShotUpdater
 from .collating_exporter import CollatedShotPreset
@@ -434,7 +434,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         # the export will be the full clip
         cut_length = self._preset.properties()["cutLength"]
 
-        # we'll keep a list of tuples of associated transcode and shot updater
+        # we'll keep a list of tuples of associated processing and shot updater
         # tasks. later we'll attach cut related information to these tasks that
         # they can use during execution
         cut_related_tasks = []
@@ -443,10 +443,11 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         for taskGroup in self._submission.children():
 
             # placeholders for the tasks we want to pre-process
-            (shot_updater_task, transcode_task) = (None, None)
+            # shot_process_task could be transcode/symlink/copy
+            (shot_updater_task, shot_process_task) = (None, None)
 
             # look at all the tasks in the group and identify the shot updater
-            # and transcode tasks.
+            # and transcode/symlink/copy tasks.
             for task in taskGroup.children():
 
                 # shot updater
@@ -460,7 +461,15 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
                         shot_updater_task = task
                 # transcode
                 elif isinstance(task, ShotgunTranscodeExporter):
-                    transcode_task = task
+                    shot_process_task = task
+
+                # symlink
+                elif isinstance(task, ShotgunSymlinkExporter):
+                    shot_process_task = task
+
+                # copy
+                elif isinstance(task, ShotgunCopyExporter):
+                    shot_process_task = task
 
                 if shot_updater_task:
                     # make the shot updater tasks aware of whether only the cut length
@@ -471,8 +480,8 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             # likely due to collating and the task not being hero.
             if shot_updater_task:
                 # add the associated tasks to the list of cut related tasks.
-                # transcode_task may be None.
-                cut_related_tasks.append((shot_updater_task, transcode_task))
+                # shot_process_task may be None.
+                cut_related_tasks.append((shot_updater_task, shot_process_task))
 
         # sort the tasks based on their position in the timeline. this gives
         # us the cut order.
@@ -481,7 +490,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         # go ahead and populate the shot updater tasks with the cut order. this
         # is used to set the cut order on the Shot as it is created/updated.
         for i in range(0, len(cut_related_tasks)):
-            (shot_updater_task, transcode_task) = cut_related_tasks[i]
+            (shot_updater_task, shot_process_task) = cut_related_tasks[i]
 
             # Cut order is 1-based
             shot_updater_task._cut_order = i + 1
@@ -630,7 +639,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         whether or not the frame server is running.
 
         We monkey patch this to allow our preview quicktimes created in the
-        transcode task to continue to be uploaded when doing individual frame
+        process task to continue to be uploaded when doing individual frame
         exports. In previous versions of Hiero, the .nk script was always
         executed as a LocalNukeRenderTask. As of Hiero 10, a new task type is
         used for frame exports called FrameServerRenderTask. This task type
@@ -645,7 +654,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
 
         This fix is a work around and given time we might consider a better
         solution. That might include separating the preview quicktime
-        generation into a separate .nk script and transcode task.
+        generation into a separate .nk script and process task.
         """
 
         try:
@@ -693,7 +702,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         parented to it.
 
         :param cut_related_tasks: A sorted list of tuples of the form:
-            (shot_updater_task, transcode_task)
+            (shot_updater_task, shot_process_task)
         """
 
         # make sure the data cache is ready. this code may create entities in
@@ -722,7 +731,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
         cut_item_data_list = []
 
         # process the tasks in order
-        for (shot_updater_task, transcode_task) in cut_related_tasks:
+        for (shot_updater_task, shot_process_task) in cut_related_tasks:
 
             # cut order was populated by the calling method to update the
             # Shot entity's cut info
@@ -781,12 +790,12 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
             # any additional information
             shot_updater_task._cut_item_data = cut_item_data
 
-            # dont' want to assume that there is an associated transcode task.
+            # dont' want to assume that there is an associated process task.
             # if there is, attach the cut item data so that the version is
             # updated. If not, then we'll get a cut item without an associated
             # version (cut info only in SG, nothing playable).
-            if transcode_task:
-                transcode_task._cut_item_data = cut_item_data
+            if shot_process_task:
+                shot_process_task._cut_item_data = cut_item_data
 
             if cut_order == 1:
                 # first item in the cut, set the cut's start timecode

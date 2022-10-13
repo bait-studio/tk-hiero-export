@@ -39,7 +39,6 @@ from . import (
     HieroPostVersionCreation,
 )
 
-
 class ShotgunTranscodeExporterUI(
     ShotgunHieroObjectBase, FnTranscodeExporterUI.TranscodeExporterUI
 ):
