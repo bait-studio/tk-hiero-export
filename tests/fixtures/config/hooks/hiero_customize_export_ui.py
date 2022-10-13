@@ -35,12 +35,12 @@ class HieroCustomizeExportUI(HookBaseClass):
         for label, prop in properties.items():
             layout.addRow(label, prop)
 
-    def create_transcode_exporter_widget(self, parent_widget):
+    def create_sg_exporter_widget(self, parent_widget):
         widget = QtGui.QGroupBox("My Custom Properties", parent_widget)
         widget.setLayout(QtGui.QFormLayout())
         return widget
 
-    def get_transcode_exporter_ui_properties(self):
+    def get_sg_exporter_ui_properties(self):
         return [
             dict(
                 label="Custom two:",
@@ -50,7 +50,7 @@ class HieroCustomizeExportUI(HookBaseClass):
             )
         ]
 
-    def set_transcode_exporter_ui_properties(self, widget, properties):
+    def set_sg_exporter_ui_properties(self, widget, properties):
         layout = widget.layout()
         for label, prop in properties.items():
             layout.addRow(label, prop)
