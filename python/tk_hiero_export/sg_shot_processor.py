@@ -466,7 +466,7 @@ class ShotgunShotProcessor(ShotgunHieroObjectBase, FnShotProcessor.ShotProcessor
                     shot_process_task = task
 
                 # symlink
-                elif isinstance(task, ShotgunSymlinkExporter):
+                elif isinstance(task, ShotgunSymLinkExporter):
                     shot_process_task = task
 
                 # copy
