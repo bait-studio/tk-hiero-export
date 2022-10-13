@@ -33,6 +33,8 @@ except ImportError:
     ShotProcessorUI = FnShotProcessor.ShotProcessor
 
 from .base import ShotgunHieroObjectBase
+from .sg_copy_exporter import ShotgunCopyExporter
+from .sg_symlink_exporter import ShotgunSymLinkExporter
 from .sg_transcode_exporter import ShotgunTranscodeExporter
 from .shot_updater import ShotgunShotUpdaterPreset
 from .shot_updater import ShotgunShotUpdater
