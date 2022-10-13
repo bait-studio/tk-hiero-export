@@ -38,14 +38,20 @@ from tk_hiero_export import (
     ShotgunShotProcessor,
     ShotgunShotProcessorUI,
     ShotgunShotUpdater,
+    ShotgunCopyPreset,
+    ShotgunSymLinkPreset,
     ShotgunTranscodePreset,
     ShotgunNukeShotPreset,
     ShotgunAudioPreset,
     ShotgunShotUpdaterPreset,
+    ShotgunCopyExporter,
+    ShotgunSymLinkExporter,
     ShotgunTranscodeExporter,
     ShotgunNukeShotExporter,
     ShotgunAudioExporter,
     ShotgunShotProcessorPreset,
+    ShotgunCopyExporterUI,
+    ShotgunSymLinkExporterUI,
     ShotgunTranscodeExporterUI,
     ShotgunNukeShotExporterUI,
     ShotgunAudioExporterUI,
@@ -159,6 +165,12 @@ class HieroExport(Application):
             ShotgunShotUpdaterPreset, ShotgunShotUpdater
         )
         hiero.core.taskRegistry.registerTask(
+            ShotgunCopyPreset, ShotgunCopyExporter
+        )
+        hiero.core.taskRegistry.registerTask(
+            ShotgunSymLinkPreset, ShotgunSymLinkExporter
+        )
+        hiero.core.taskRegistry.registerTask(
             ShotgunTranscodePreset, ShotgunTranscodeExporter
         )
         hiero.core.taskRegistry.registerTask(
@@ -169,6 +181,12 @@ class HieroExport(Application):
             ShotgunShotProcessorPreset, ShotgunShotProcessor
         )
 
+        hiero.ui.taskUIRegistry.registerTaskUI(
+            ShotgunCopyPreset, ShotgunCopyExporterUI
+        )
+        hiero.ui.taskUIRegistry.registerTaskUI(
+            ShotgunSymLinkPreset, ShotgunSymLinkExporterUI
+        )
         hiero.ui.taskUIRegistry.registerTaskUI(
             ShotgunTranscodePreset, ShotgunTranscodeExporterUI
         )
