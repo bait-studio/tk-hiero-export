@@ -50,7 +50,7 @@ class ShotgunSymLinkExporterUI(
 
     def __init__(self, preset):
         FnSymLinkExporterUI.SymLinkExporterUI.__init__(self, preset)
-        self._displayName = "SG SymLink Images"
+        self._displayName = "SG SymLink Files"
         self._taskType = ShotgunSymLinkExporter
 
     def create_version_changed(self, state):
