@@ -387,7 +387,7 @@ class ShotgunCopyExporter(
         tasks = []
 
         # create task to generate web-reviewable nuke script from transcode templates
-        outputMovPath = outputNukeScriptPath.replace(".nk", ".mp4") #TODO - pull from template
+        outputMovPath = outputNukeScriptPath.replace(".nk", ".mov") #TODO - pull from template
         templateScriptPath = os.path.join(pathToBaitTasksFolder, "nukescripts", "TranscodeScriptExample.nk")
         nukeWebReviewableScriptCreationTask = BaitTasks.Tasks.Nuke.NukeGenerateScriptFromTranscodeTemplate(
             cleanedPathToFrames,
