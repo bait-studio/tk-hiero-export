@@ -322,6 +322,7 @@ class ShotgunNukeShotPreset(
     Settings for the shotgun transcode step
     """
 
+    #TODO MB: Does this need updating?
     def __init__(self, name, properties):
         FnNukeShotExporter.NukeShotPreset.__init__(self, name, properties)
         self._parentType = ShotgunNukeShotExporter

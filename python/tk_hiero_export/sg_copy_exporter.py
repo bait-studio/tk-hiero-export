@@ -11,13 +11,14 @@
 import os
 import ast
 import sys
+import time
 import shutil
 import tempfile
 import inspect
 
 from hiero.exporters import FnExternalRender
-from hiero.exporters import FnTranscodeExporter
-from hiero.exporters import FnTranscodeExporterUI
+from hiero.exporters import FnCopyExporter
+from hiero.exporters import FnCopyExporterUI
 
 import hiero
 from hiero import core
@@ -39,20 +40,25 @@ from . import (
     HieroPostVersionCreation,
 )
 
+pathToBaitTasksPythonFolder = os.environ.get("BAIT_TASKS_PYTHON_DIR", None)
+assert pathToBaitTasksPythonFolder != None
+if pathToBaitTasksPythonFolder not in sys.path:
+    sys.path.append(pathToBaitTasksPythonFolder)
+import BaitTasks
 
-class ShotgunTranscodeExporterUI(
-    ShotgunHieroObjectBase, FnTranscodeExporterUI.TranscodeExporterUI
+class ShotgunCopyExporterUI(
+    ShotgunHieroObjectBase, FnCopyExporterUI.CopyExporterUI
 ):
     """
-    Custom Preferences UI for the shotgun transcoder
+    Custom Preferences UI for the shotgun copy exporter
 
-    Embeds the UI for the std transcoder UI.
+    Embeds the UI for the std copy UI.
     """
 
     def __init__(self, preset):
-        FnTranscodeExporterUI.TranscodeExporterUI.__init__(self, preset)
-        self._displayName = "SG Transcode Images"
-        self._taskType = ShotgunTranscodeExporter
+        FnCopyExporterUI.CopyExporterUI.__init__(self, preset)
+        self._displayName = "SG Copy Files"
+        self._taskType = ShotgunCopyExporter
 
     def create_version_changed(self, state):
         create_version = state == QtCore.Qt.Checked
@@ -70,189 +76,49 @@ class ShotgunTranscodeExporterUI(
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(9)
 
-        top = QtGui.QWidget()
-
-        top_layout = QtGui.QVBoxLayout()
-        top_layout.setContentsMargins(9, 0, 9, 0)
-        create_version_checkbox = QtGui.QCheckBox("Create SG Version", widget)
-        create_version_checkbox.setToolTip(
-            "Create a Version in SG for this transcode.\n\n"
-            "If the output format is not a quicktime, then\n"
-            "a quicktime will be created.  The quicktime will\n"
-            "be uploaded to SG as Screening Room media."
-        )
-
-        create_version_checkbox.setCheckState(QtCore.Qt.Checked)
-        if not self._preset._properties.get("create_version", True):
-            create_version_checkbox.setCheckState(QtCore.Qt.Unchecked)
-        create_version_checkbox.stateChanged.connect(self.create_version_changed)
-        top_layout.addWidget(create_version_checkbox)
-
-        top.setLayout(top_layout)
-
-        middle = QtGui.QWidget()
+        #Customise layout here if needed
 
         # prior to 10.5v1, the layout was set in the base class. in 10.5v1, the
         # base class expects the widget to already have a layout.
+        middle = QtGui.QWidget()
         if self.app.get_nuke_version_tuple() >= (10, 5, 1):
             middle.setLayout(QtGui.QVBoxLayout())
 
         # populate the middle with the standard layout
-        FnTranscodeExporterUI.TranscodeExporterUI.populateUI(
+        FnCopyExporterUI.CopyExporterUI.populateUI(
             self, middle, exportTemplate
         )
 
-        layout.addWidget(top)
         layout.addWidget(middle)
 
         # Handle any custom widget work the user did via the custom_export_ui
         # hook.
         custom_widget = self._get_custom_widget(
             parent=widget,
-            create_method="create_transcode_exporter_widget",
-            get_method="get_transcode_exporter_ui_properties",
-            set_method="set_transcode_exporter_ui_properties",
+            create_method="create_sg_exporter_widget",
+            get_method="get_sg_exporter_ui_properties",
+            set_method="set_sg_exporter_ui_properties",
         )
 
         if custom_widget is not None:
             layout.addWidget(custom_widget)
 
 
-class ShotgunTranscodeExporter(
-    ShotgunHieroObjectBase, FnTranscodeExporter.TranscodeExporter, CollatingExporter
+class ShotgunCopyExporter(
+    ShotgunHieroObjectBase, FnCopyExporter.CopyExporter, CollatingExporter
 ):
     """
-    Create Transcode object and send to Shotgun
+    Create CopyExporter object and send to Shotgun
     """
-
-    # This is an arbitrarily named label we will use as a SetNode id,
-    # which can then be later used to connect a PushNode to
-    _write_set_node_label = "SG_Write_Attachment"
 
     def __init__(self, initDict):
         """Constructor"""
-        FnTranscodeExporter.TranscodeExporter.__init__(self, initDict)
+        FnCopyExporter.CopyExporter.__init__(self, initDict)
         CollatingExporter.__init__(self)
         self._resolved_export_path = None
         self._sequence_name = None
         self._shot_name = None
         self._thumbnail = None
-        self._quicktime_path = None
-        self._temp_quicktime = None
-
-    def addWriteNodeToScript(self, script, rootNode, framerate):
-        """
-        Override the default addWriteNodeToScript functionality so that we can add a SetNode before
-        the default writenodes get added to the script. The SetNode will allow us to later push our mov writenode
-        to this point so that it get parented correctly.
-        """
-        self.app.log_debug("Adding SetNode before base write node gets added")
-        # Add the SetNode before the write nodes are added.
-        set_command = nuke.SetNode(self._write_set_node_label, 0)
-        script.addNode(set_command)
-
-        super(ShotgunTranscodeExporter, self).addWriteNodeToScript(
-            script, rootNode, framerate
-        )
-
-    def buildScript(self):
-        """
-        Override the default buildScript functionality to also output a temp movie
-        file if needed for uploading to Shotgun
-        """
-
-        # This is a bit of a hack to account for some changes to the
-        # transcode exporter that ships with Nuke/Hiero 9.0 compared
-        # to earlier versions of Hiero.
-
-        file_type = self._preset.properties()["file_type"]
-        self.app.log_debug("Transcode export file_type: %s" % file_type)
-
-        if file_type in ["mov", "ffmpeg"]:
-            if not self._preset.properties()[file_type].get("encoder"):
-                encoder_name = self.app.get_default_encoder_name()
-                self._preset.properties()[file_type]["encoder"] = encoder_name
-
-        # Build the usual script using the base code
-        FnTranscodeExporter.TranscodeExporter.buildScript(self)
-        self.app.log_debug("Transcode base script built")
-
-        # If we are not creating a version then we do not need the extra node
-        if not self._preset.properties()["create_version"]:
-            return
-
-        if file_type in ["mov", "ffmpeg"]:
-            # already outputting a mov file, use that for upload
-            self._quicktime_path = self.resolvedExportPath()
-            self._temp_quicktime = False
-            return
-
-        self._quicktime_path = os.path.join(tempfile.mkdtemp(), "preview.mov")
-        self._temp_quicktime = True
-        nodeName = "SG Screening Room Media"
-
-        framerate = None
-        if self._sequence:
-            framerate = self._sequence.framerate()
-        if self._clip.framerate().isValid():
-            framerate = self._clip.framerate()
-
-        preset = FnTranscodeExporter.TranscodePreset(
-            "Qt Write", self._preset.properties()
-        )
-
-        # insert the write node to generate the quicktime
-        file_type, properties = self.app.execute_hook(
-            "hook_get_quicktime_settings",
-            for_shotgun=True,
-            base_class=HieroGetQuicktimeSettings,
-        )
-        self.app.log_info("Transcode quicktime settings: %s" % (properties,))
-        preset.properties().update(
-            {
-                "file_type": file_type,
-                file_type: properties,
-            }
-        )
-
-        # Sadly Foundry has a habit of changing the interfaces of
-        # their Python classes out from under us, so now we're going
-        # to have to handle this the ugly way, via introspecting the
-        # arguments expected by the createWriteNode method.
-        arg_spec = inspect.getargspec(FnExternalRender.createWriteNode)
-        if "projectsettings" in arg_spec.args:
-            kwargs = dict(
-                path=self._quicktime_path,
-                preset=preset,
-                nodeName=nodeName,
-                framerate=framerate,
-                projectsettings=self._projectSettings,
-            )
-        elif "ctx" in arg_spec.args:
-            kwargs = dict(
-                ctx=self,
-                path=self._quicktime_path,
-                preset=preset,
-                nodeName=nodeName,
-                framerate=framerate,
-                project=self._project,
-            )
-        else:
-            kwargs = dict(
-                path=self._quicktime_path,
-                preset=preset,
-                nodeName=nodeName,
-                framerate=framerate,
-                project=self._project,
-            )
-        mov_write_node = FnExternalRender.createWriteNode(**kwargs)
-
-        # We create a push node and connect it to the set node we created just before the base write node was created
-        # This means that our write node will parent to the same node the base write node gets parented to.
-        push_command = nuke.PushNode(self._write_set_node_label)
-        self._script.addNode(push_command)
-
-        self._script.addNode(mov_write_node)
 
     def sequenceName(self):
         """override default sequenceName() to handle collated shots"""
@@ -260,9 +126,9 @@ class ShotgunTranscodeExporter(
             if self.isCollated():
                 return self._parentSequence.name()
             else:
-                return FnTranscodeExporter.TranscodeExporter.sequenceName(self)
+                return FnCopyExporter.CopyExporter.sequenceName(self)
         except AttributeError:
-            return FnTranscodeExporter.TranscodeExporter.sequenceName(self)
+            return FnCopyExporter.CopyExporter.sequenceName(self)
 
     def writeAudio(self):
         """
@@ -276,7 +142,7 @@ class ShotgunTranscodeExporter(
         original = self._item
         self._item = item
 
-        result = FnTranscodeExporter.TranscodeExporter.writeAudio(self)
+        result = FnCopyExporter.CopyExporter.writeAudio(self)
 
         self._item = original
 
@@ -352,7 +218,7 @@ class ShotgunTranscodeExporter(
                 "created_by": sg_current_user,
                 "entity": self._sg_shot,
                 "project": self.app.context.project,
-                "sg_path_to_movie": self._resolved_export_path,
+                "sg_path_to_frames": self._resolved_export_path,
                 "code": file_name,
                 "sg_first_frame": head_in,
                 "sg_last_frame": tail_out,
@@ -390,12 +256,12 @@ class ShotgunTranscodeExporter(
         except Exception:
             pass
 
-        return FnTranscodeExporter.TranscodeExporter.startTask(self)
+        return FnCopyExporter.CopyExporter.startTask(self)
 
     def finishTask(self):
         """Finish Task"""
         # run base class implementation
-        FnTranscodeExporter.TranscodeExporter.finishTask(self)
+        FnCopyExporter.CopyExporter.finishTask(self)
 
         # create publish
         ################
@@ -453,16 +319,6 @@ class ShotgunTranscodeExporter(
             self.app.log_debug("Creating SG Version %s" % str(self._version_data))
             vers = self.app.shotgun.create("Version", self._version_data)
 
-            if os.path.exists(self._quicktime_path):
-                self.app.log_debug(
-                    "Uploading quicktime to ShotGrid... (%s)" % self._quicktime_path
-                )
-                self.app.shotgun.upload(
-                    "Version", vers["id"], self._quicktime_path, "sg_uploaded_movie"
-                )
-                if self._temp_quicktime:
-                    shutil.rmtree(os.path.dirname(self._quicktime_path))
-
         # Post creation hook
         ####################
         if vers:
@@ -471,6 +327,11 @@ class ShotgunTranscodeExporter(
                 version_data=vers,
                 base_class=HieroPostVersionCreation,
             )
+
+        # Web-reviewable media creation
+        ####################
+        if vers:
+            self.createWebReviewable(vers,  ctx.to_dict())
 
         # Update the cut item if possible
         #################################
@@ -495,20 +356,105 @@ class ShotgunTranscodeExporter(
 
         # Log usage metrics
         try:
-            self.app.log_metric("Transcode & Publish", log_version=True)
+            self.app.log_metric("Copy & Publish", log_version=True)
         except:
             # ingore any errors. ex: metrics logging not supported
             pass
 
+    def createWebReviewable(self, versionInfo, contextDict):
+        # create output nukescript path
+        cleanedPathToFrames = versionInfo["sg_path_to_frames"].replace(os.path.sep, "/")
+        pathToFramesNoExt = cleanedPathToFrames.split(".####")[0]
+        outputNukeScriptPath = "{}.nk".format(pathToFramesNoExt)
 
-class ShotgunTranscodePreset(
-    ShotgunHieroObjectBase, FnTranscodeExporter.TranscodePreset, CollatedShotPreset
+        # get path to the bait tasks transcode templates
+        pathToBaitTasksFolder = os.environ.get("BAIT_TASKS_DIR", None)
+        if not pathToBaitTasksFolder:
+            self.app.log_error("Could not find Bait Tasks directory in os.environ")
+            return False
+
+        # get frame in/out from version
+        frameIn = versionInfo["sg_first_frame"]
+        frameOut = versionInfo["sg_last_frame"]
+
+        # set the deadline vars
+        submitTime = time.strftime("%H:%M", time.localtime())
+        batchGroupName = batchGroupName = "{} | Ingest | {} | {}".format(versionInfo["code"], versionInfo["project"]["name"], submitTime)
+        nukeVersion = "{}.{}".format(nuke.nuke.NUKE_VERSION_MAJOR, nuke.nuke.NUKE_VERSION_MINOR)
+        nukeMachineList = []
+
+        # collate tasks
+        tasks = []
+
+        # create task to generate web-reviewable nuke script from transcode templates
+        outputMovPath = outputNukeScriptPath.replace(".nk", ".mov") #TODO - pull from template
+        templateScriptPath = os.path.join(pathToBaitTasksFolder, "nukescripts", "TranscodeScriptExample.nk")
+        nukeWebReviewableScriptCreationTask = BaitTasks.Tasks.Nuke.NukeGenerateScriptFromTranscodeTemplate(
+            cleanedPathToFrames,
+            outputMovPath,
+            templateScriptPath,
+            outputNukeScriptPath,
+            frameIn,
+            frameOut,
+            supressFileSavedCheck=True,
+            supressWriteNodeCheck=True
+        )
+        tasks.append(nukeWebReviewableScriptCreationTask)
+
+        #Submit web-reviewable script to deadline
+        submitWebReviewableToDeadlineTask = BaitTasks.Tasks.Deadline.SubmitNukeScript(
+            "WebReviewable: {}".format(os.path.basename(outputNukeScriptPath.replace(".nk", ""))),
+            outputNukeScriptPath,
+            outputMovPath,
+            frameIn,
+            frameOut,
+            comment="The web-reviewable render",
+            nukeVersion=nukeVersion,
+            machineList=nukeMachineList,
+            batchGroupName=batchGroupName,
+            sameWorker=True
+        )
+        tasks.append(submitWebReviewableToDeadlineTask)
+
+        #Add an upload web reviewable shotgrid subtask. This will run via a RunBaitTasks task that we'll create in a second
+        uploadWebReviewableVersionMediaTask = BaitTasks.Tasks.ShotGrid.SubTasks.ShotGridUploadWebReviewable(
+            outputMovPath,
+            versionInfo["project"]["id"],
+            entityType="Version",
+            entityID=versionInfo["id"],
+        )
+
+        #Run the webreviewable upload once the render is complete
+        runWebReviewableUploadAndStatusUpdateShotgunTasks = BaitTasks.Tasks.Deadline.RunBaitTasks(
+            "Upload Web-Reviewable",
+            [BaitTasks.Tasks.ShotGrid.ShotGridUpdater([uploadWebReviewableVersionMediaTask])], 
+            "2.7",
+            "Uploading of web-reviewable media",
+            machineList=nukeMachineList,
+            batchGroupName=batchGroupName,
+            upstreamDeadlineTaskIDs=[submitWebReviewableToDeadlineTask.id]
+        )
+        tasks.append(runWebReviewableUploadAndStatusUpdateShotgunTasks)
+
+        self.app.log_info(versionInfo)
+        self.app.log_info(contextDict)
+        self.app.log_info("Created {} BaitTasks".format(len(tasks)))
+        for task in tasks:
+            self.app.log_info(task.serialise())
+            self.app.log_info("")
+
+        #Run the Tasks
+        BaitTasks.Handler.default.addTasksToQueue(tasks, autoStart=True)
+        self.app.log_info("Ran {} BaitTasks".format(len(tasks)))
+
+class ShotgunCopyPreset(
+    ShotgunHieroObjectBase, FnCopyExporter.CopyPreset, CollatedShotPreset
 ):
-    """Settings for the SG transcode step"""
+    """Settings for the SG copy step"""
 
     def __init__(self, name, properties):
-        FnTranscodeExporter.TranscodePreset.__init__(self, name, properties)
-        self._parentType = ShotgunTranscodeExporter
+        FnCopyExporter.CopyPreset.__init__(self, name, properties)
+        self._parentType = ShotgunCopyExporter
         CollatedShotPreset.__init__(self, self.properties())
 
         # set default values
@@ -516,7 +462,7 @@ class ShotgunTranscodePreset(
 
         # Handle custom properties from the customize_export_ui hook.
         custom_properties = (
-            self._get_custom_properties("get_transcode_exporter_ui_properties") or []
+            self._get_custom_properties("get_sg_exporter_ui_properties") or []
         )
 
         self.properties().update({d["name"]: d["value"] for d in custom_properties})

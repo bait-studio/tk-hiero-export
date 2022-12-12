@@ -110,7 +110,7 @@ class HieroCustomizeExportUI(HookBaseClass):
         """
         return
 
-    def create_transcode_exporter_widget(self, parent_widget):
+    def create_sg_exporter_widget(self, parent_widget):
         """
         Builds and returns a custom widget to be embedded in the parent exporter.
         If a custom widget is returned by this method, it will be added to the
@@ -125,7 +125,7 @@ class HieroCustomizeExportUI(HookBaseClass):
         """
         return None
 
-    def get_transcode_exporter_ui_properties(self):
+    def get_sg_exporter_ui_properties(self):
         """
         Gets a list of property dictionaries describing the custom properties
         required by the custom widget. This method will only be run if the
@@ -143,10 +143,10 @@ class HieroCustomizeExportUI(HookBaseClass):
         """
         return []
 
-    def set_transcode_exporter_ui_properties(self, widget, properties):
+    def set_sg_exporter_ui_properties(self, widget, properties):
         """
-        Sets any custom properties described by get_transcode_exporter_ui_properties
-        on the custom widget returned by create_transcode_exporter_widget. This method
+        Sets any custom properties described by get_sg_exporter_ui_properties
+        on the custom widget returned by create_sg_exporter_widget. This method
         will only be called if the create method is implemented to return a custom
         widget. The order of the properties within the dictionary passed in is the
         same as the order they're returned in the get properties hook method.

@@ -48,7 +48,17 @@ from .sg_shot_processor import (
 )
 
 from .shot_updater import ShotgunShotUpdater, ShotgunShotUpdaterPreset
-from .version_creator import (
+from .sg_copy_exporter import (
+    ShotgunCopyExporterUI,
+    ShotgunCopyExporter,
+    ShotgunCopyPreset,
+)
+from .sg_symlink_exporter import (
+    ShotgunSymLinkExporterUI,
+    ShotgunSymLinkExporter,
+    ShotgunSymLinkPreset,
+)
+from .sg_transcode_exporter import (
     ShotgunTranscodeExporterUI,
     ShotgunTranscodeExporter,
     ShotgunTranscodePreset,
