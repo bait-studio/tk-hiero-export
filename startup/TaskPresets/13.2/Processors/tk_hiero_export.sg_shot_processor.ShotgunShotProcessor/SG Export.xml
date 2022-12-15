@@ -19,7 +19,7 @@
             </SequenceItem>
         </SequenceItem>
         <SequenceItem valuetype="tuple">
-            <SequenceItem valuetype="str">sequences/{sequence}/{shot}/work/nuke/{shot}_comp.v{tk_version}.nk</SequenceItem>
+            <SequenceItem valuetype="str">sequences/{sequence}/{shot}/work/nuke/{shot}_Comp.v{tk_version}.nk</SequenceItem>
             <SequenceItem valuetype="tk_hiero_export.sg_nuke_shot_export.ShotgunNukeShotPreset">
                 <root presetname="" tasktype="tk_hiero_export.sg_nuke_shot_export.ShotgunNukeShotExporter">
                     <enable valuetype="bool">True</enable>
