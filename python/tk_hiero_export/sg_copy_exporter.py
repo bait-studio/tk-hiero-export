@@ -12,13 +12,10 @@ import os
 import ast
 import sys
 import time
-import shutil
-import tempfile
-import inspect
 
-from hiero.exporters import FnExternalRender
 from hiero.exporters import FnCopyExporter
 from hiero.exporters import FnCopyExporterUI
+from hiero.exporters import FnShotExporter
 
 import hiero
 from hiero import core
@@ -29,11 +26,12 @@ import tank
 import sgtk.util
 from sgtk.platform.qt import QtGui, QtCore
 
+from concurrent.futures import ThreadPoolExecutor
+
 from .base import ShotgunHieroObjectBase
 from .collating_exporter import CollatingExporter, CollatedShotPreset
 
 from . import (
-    HieroGetQuicktimeSettings,
     HieroGetShot,
     HieroUpdateVersionData,
     HieroGetExtraPublishData,
@@ -257,6 +255,41 @@ class ShotgunCopyExporter(
             pass
 
         return FnCopyExporter.CopyExporter.startTask(self)
+
+    def taskStep(self):
+        '''
+        In order to override the default Hiero copy behaviour and multi-thread the copy process,
+        we need to override the default taskStep method, originally set in FnFrameExporter (a parent class).
+        '''
+        #Run taskStep from ShotTask - I think this likely calls into hiero.core.TaskBase to handle progress.
+        FnShotExporter.ShotTask.taskStep(self)
+
+        #We have an array of paths to copy in self._paths.
+        #We have the current index in self._currentPathIndex.
+        #I assume both of these are used in progress calculation so need to be valid at the end of this method.
+
+        #Exit early if we've done all work
+        if self._currentPathIndex >= len(self._paths):
+            return False
+
+        #We're going to use a ThreadPoolExecutor to batch copy multiple files per taskStep.
+        #We're going to use the default doFrame method from FnCopyExporter.
+        #Lets assume a safe limit of 10 threads for now.
+
+        #Get the next 10 pairs of src/dst paths. If fewer than 10 paths remain, just get available.
+        targetThreadCount = 10
+        nextPaths = []
+        while len(nextPaths) < targetThreadCount and self._currentPathIndex < len(self._paths):
+            nextPaths.append(self._paths[self._currentPathIndex])
+            self._currentPathIndex += 1
+
+        #Create the ThreadPoolExecutor with the correct amount of threads and submit the doFrame method
+        actualThreadCount = min(len(nextPaths), targetThreadCount)
+        with ThreadPoolExecutor(actualThreadCount) as exe:
+            _ = [exe.submit(self.doFrame, srcPath, dstPath) for srcPath, dstPath in nextPaths]
+         
+        #All frames should complete before we return from taskStep
+        return True
 
     def finishTask(self):
         """Finish Task"""
