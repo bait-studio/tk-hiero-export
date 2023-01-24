@@ -24,6 +24,10 @@ from sgtk.platform.qt import QtGui, QtCore
 from .base import ShotgunHieroObjectBase
 from . import HieroGetExtraPublishData
 
+# https://stackoverflow.com/a/57300253
+from pathlib import Path
+def unc_drive(file_path):
+    return str(Path(file_path).resolve())
 
 class ShotgunNukeShotExporterUI(
     ShotgunHieroObjectBase, FnNukeShotExporterUI.NukeShotExporterUI
@@ -149,7 +153,7 @@ class ShotgunNukeShotExporter(
         Run Task
         """
         if self._resolved_export_path is None:
-            self._resolved_export_path = self.resolvedExportPath()
+            self._resolved_export_path = unc_drive(self.resolvedExportPath())
             self._tk_version_number = self._formatTkVersionString(self.versionString())
 
             # convert slashes to native os style..
