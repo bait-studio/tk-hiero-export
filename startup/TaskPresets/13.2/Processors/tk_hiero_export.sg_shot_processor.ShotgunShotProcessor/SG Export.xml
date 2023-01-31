@@ -7,7 +7,7 @@
     <versionPadding valuetype="int">2</versionPadding>
     <exportTemplate valuetype="list">
         <SequenceItem valuetype="tuple">
-            <SequenceItem valuetype="str">sequences/{sequence}/{shot}/editorial/plates/v{tk_version}/{shot}.####.{fileext}</SequenceItem>
+            <SequenceItem valuetype="str">sequences/{sequence}/{shot}/editorial/plates/{shot}_v{tk_version}/{shot}_v{tk_version}.####.{fileext}</SequenceItem>
             <SequenceItem valuetype="tk_hiero_export.sg_copy_exporter.ShotgunCopyPreset">
                 <root presetname="tk_hiero_export.sg_copy_exporter.ShotgunCopyExporter" tasktype="tk_hiero_export.sg_copy_exporter.ShotgunCopyExporter">
                     <collateTracks valuetype="bool">False</collateTracks>
@@ -19,12 +19,12 @@
             </SequenceItem>
         </SequenceItem>
         <SequenceItem valuetype="tuple">
-            <SequenceItem valuetype="str">sequences/{sequence}/{shot}/work/nuke/{shot}_comp.v{tk_version}.nk</SequenceItem>
+            <SequenceItem valuetype="str">sequences/{sequence}/{shot}/work/nuke/{shot}_comp_v{tk_version}.nk</SequenceItem>
             <SequenceItem valuetype="tk_hiero_export.sg_nuke_shot_export.ShotgunNukeShotPreset">
                 <root presetname="" tasktype="tk_hiero_export.sg_nuke_shot_export.ShotgunNukeShotExporter">
                     <enable valuetype="bool">True</enable>
                     <readPaths valuetype="list">
-                        <SequenceItem valuetype="str">sequences/{sequence}/{shot}/editorial/plates/v{tk_version}/{shot}.####.{fileext}</SequenceItem>
+                        <SequenceItem valuetype="str">sequences/{sequence}/{shot}/editorial/plates/{shot}_v{tk_version}/{shot}_v{tk_version}.####.{fileext}</SequenceItem>
                     </readPaths>
                     <writePaths valuetype="list" />
                     <timelineWriteNode valuetype="str" />
@@ -54,7 +54,7 @@
             </SequenceItem>
         </SequenceItem>
         <SequenceItem valuetype="tuple">
-            <SequenceItem valuetype="str">sequences/{sequence}/{shot}/work/nuke/renders/v{tk_version}/{shot}_comp.####.exr</SequenceItem>
+            <SequenceItem valuetype="str">sequences/{sequence}/{shot}/work/nuke/renders/{shot}_comp_v{tk_version}/{shot}_comp_v{tk_version}.####.exr</SequenceItem>
             <SequenceItem valuetype="hiero.exporters.FnExternalRender.NukeRenderPreset">
                 <root presetname="" tasktype="hiero.exporters.FnExternalRender.NukeRenderTask">
                     <file_type valuetype="str">exr</file_type>
