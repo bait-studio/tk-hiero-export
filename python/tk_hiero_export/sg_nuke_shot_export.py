@@ -46,7 +46,7 @@ class ShotgunNukeShotExporterUI(
         self._toolkit_list.resize(200, 50)
 
         self._toolkit_model = QtGui.QStandardItemModel()
-        nodes = self.app.get_setting("nuke_script_toolkit_write_nodes")
+        nodes = self.app.get_setting("nuke_script_toolkit_write_nodes_exr")
         properties = self._preset.properties()
 
         for node in nodes:
@@ -334,7 +334,7 @@ class ShotgunNukeShotPreset(
 
         # default toolkit write nodes
         toolkit_write_nodes = []
-        nodes = self.app.get_setting("nuke_script_toolkit_write_nodes")
+        nodes = self.app.get_setting("nuke_script_toolkit_write_nodes_exr")
         for node in nodes:
             name = 'Toolkit Node: %s ("%s")' % (node["name"], node["channel"])
             toolkit_write_nodes.append(name)

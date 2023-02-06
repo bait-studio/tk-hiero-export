@@ -24,7 +24,22 @@ configuration:
         description: The string value of the Published File/Tank Type used for Nuke scripts.
         default_value: Nuke Script
 
-    nuke_script_toolkit_write_nodes:
+    nuke_script_toolkit_write_nodes_exr:
+        type: list
+        description: "A list of dictionaries in which you define the Sgtk write
+                     nodes that will be added to the published nuke scripts.
+                     Each dictionary entry needs to have the following keys:
+                     channel - the value for the 'output' knob in the created node.
+                     name - the profile name of the write node to create."
+        allows_empty: True
+        values:
+            type: dict
+            items:
+                channel: { type: str }
+                name: { type: str }
+        description:
+
+    nuke_script_toolkit_write_nodes_dpx:
         type: list
         description: "A list of dictionaries in which you define the Sgtk write
                      nodes that will be added to the published nuke scripts.
@@ -197,12 +212,11 @@ configuration:
         default_value: hiero_update_cuts
 
     # paths
-    template_plate_path:
+    template_version:
         type: template
-        description: "A reference to a template which specifies the directory to
-                     publish shot plates to.  The translate template hook must
-                     understand how to translate this to Hiero keywords."
-        required_fields: []
+        description: "String template that specifies how to format the Hiero tk_version
+                      token as a version string for tk."
+        required_fields: [version]
         optional_fields: "*"
 
     template_nuke_script_path:
@@ -213,7 +227,15 @@ configuration:
         required_fields: []
         optional_fields: "*"
 
-    template_render_path:
+    template_plate_path_exr:
+        type: template
+        description: "A reference to a template which specifies the directory to
+                     publish shot plates to.  The translate template hook must
+                     understand how to translate this to Hiero keywords."
+        required_fields: []
+        optional_fields: "*"
+
+    template_render_path_exr:
         type: template
         description: "A reference to a template which specifies what renders will
                      be named. The translate template hook must understand how
@@ -221,11 +243,20 @@ configuration:
         required_fields: []
         optional_fields: "*"
 
-    template_version:
+    template_plate_path_dpx:
         type: template
-        description: "String template that specifies how to format the Hiero tk_version
-                      token as a version string for tk."
-        required_fields: [version]
+        description: "A reference to a template which specifies the directory to
+                     publish shot plates to.  The translate template hook must
+                     understand how to translate this to Hiero keywords."
+        required_fields: []
+        optional_fields: "*"
+
+    template_render_path_dpx:
+        type: template
+        description: "A reference to a template which specifies what renders will
+                     be named. The translate template hook must understand how
+                     to translate this to Hiero keywords."
+        required_fields: []
         optional_fields: "*"
 
 # the engines that this app can operate in:

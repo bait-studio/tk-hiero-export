@@ -212,6 +212,13 @@ class HieroExport(Application):
         # add all built-in defaults
         self._old_AddDefaultPresets_fn(overwrite)
 
+        # add custom dynamic export preset
+        self._add_dynamic_export_preset(overwrite)
+
+    def _add_dynamic_export_preset(self, overwrite):
+        # first step is to get the working format from the current project
+        print(os.environ["SG_WORKING_FORMAT"])
+
         # # Add Shotgun template
         # name = "Basic SG Shot"
         # localpresets = [
@@ -221,9 +228,9 @@ class HieroExport(Application):
         # # only add the preset if it is not already there - or if a reset to defaults is requested.
         # if overwrite or name not in localpresets:
         #     # grab all our path templates
-        #     plate_template = self.get_template("template_plate_path")
+        #     plate_template = self.get_template("template_plate_path_exr")
         #     script_template = self.get_template("template_nuke_script_path")
-        #     render_template = self.get_template("template_render_path")
+        #     render_template = self.get_template("template_render_path_exr")
 
         #     # call the hook to translate them into hiero paths, using hiero keywords
         #     plate_hiero_str = self.execute_hook(
