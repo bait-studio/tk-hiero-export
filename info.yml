@@ -263,12 +263,10 @@ configuration:
     dpx_write_node_properties:
         type: dict
         description: "The dpx properties to use for the default Nuke script write node."
-        default_value: {}
 
     exr_write_node_properties:
         type: dict
         description: "The exr properties to use for the default Nuke script write node."
-        default_value: {}
 
 # the engines that this app can operate in:
 supported_engines: [tk-hiero, tk-nuke]
