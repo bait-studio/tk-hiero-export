@@ -212,80 +212,98 @@ class HieroExport(Application):
         # add all built-in defaults
         self._old_AddDefaultPresets_fn(overwrite)
 
-        # add custom dynamic export preset
-        self._add_dynamic_export_preset(overwrite)
+        # add custom dynamic export preset - always overwrite
+        self._add_dynamic_export_preset(True)
 
     def _add_dynamic_export_preset(self, overwrite):
         # first step is to get the working format from the current project
-        print(os.environ["SG_WORKING_FORMAT"])
+        # Add Shotgun template
+        project_name = os.environ["SG_PROJECT_NAME"] if len(os.environ["SG_PROJECT_NAME"]) else "Unknown Project"
+        name = "SG Export ({})".format(project_name)
+        localpresets = [
+            preset.name() for preset in hiero.core.taskRegistry.localPresets()
+        ]
 
-        # # Add Shotgun template
-        # name = "Basic SG Shot"
-        # localpresets = [
-        #     preset.name() for preset in hiero.core.taskRegistry.localPresets()
-        # ]
+        # only add the preset if it is not already there - or if a reset to defaults is requested.
+        if overwrite or name not in localpresets:
+            # grab all our path templates
+            working_format = os.environ["SG_WORKING_FORMAT"].lower()
+            plate_template = self.get_template("template_plate_path_{}".format(working_format))
+            script_template = self.get_template("template_nuke_script_path")
+            render_template = self.get_template("template_nuke_render_path_{}".format(working_format))
 
-        # # only add the preset if it is not already there - or if a reset to defaults is requested.
-        # if overwrite or name not in localpresets:
-        #     # grab all our path templates
-        #     plate_template = self.get_template("template_plate_path_exr")
-        #     script_template = self.get_template("template_nuke_script_path")
-        #     render_template = self.get_template("template_render_path_exr")
 
-        #     # call the hook to translate them into hiero paths, using hiero keywords
-        #     plate_hiero_str = self.execute_hook(
-        #         "hook_translate_template", template=plate_template, output_type="plate"
-        #     )
-        #     self.log_debug("Translated %s --> %s" % (plate_template, plate_hiero_str))
+            # call the hook to translate them into hiero paths, using hiero keywords
+            hiero_plate_template_string = self.execute_hook(
+                "hook_translate_template", template=plate_template, output_type="plate"
+            )
 
-        #     script_hiero_str = self.execute_hook(
-        #         "hook_translate_template",
-        #         template=script_template,
-        #         output_type="script",
-        #     )
-        #     self.log_debug("Translated %s --> %s" % (script_template, script_hiero_str))
+            nuke_script_template_string = self.execute_hook(
+                "hook_translate_template",
+                template=script_template,
+                output_type="script",
+            )
 
-        #     render_hiero_str = self.execute_hook(
-        #         "hook_translate_template",
-        #         template=render_template,
-        #         output_type="render",
-        #     )
-        #     self.log_debug("Translated %s --> %s" % (render_template, render_hiero_str))
+            nuke_render_template_string = self.execute_hook(
+                "hook_translate_template",
+                template=render_template,
+                output_type="render",
+            )
 
-        #     # check so that no unknown keywords exist in the templates after translation
-        #     self._validate_hiero_export_template(plate_hiero_str)
-        #     self._validate_hiero_export_template(script_hiero_str)
-        #     self._validate_hiero_export_template(render_hiero_str)
+            # check so that no unknown keywords exist in the templates after translation
+            self._validate_hiero_export_template(hiero_plate_template_string)
+            self._validate_hiero_export_template(nuke_script_template_string)
+            self._validate_hiero_export_template(nuke_render_template_string)
 
-        #     # and set the default properties to be based off of those templates
+            # switch to linux slashes
+            norm_hiero_plate_template_string = os.path.normpath(hiero_plate_template_string).replace(os.path.sep, "/")
+            norm_nuke_script_template_string = os.path.normpath(nuke_script_template_string).replace(os.path.sep, "/")
+            norm_nuke_render_template_string = os.path.normpath(nuke_render_template_string).replace(os.path.sep, "/")  
+            # print(norm_hiero_plate_template_string)
+            # print(norm_nuke_script_template_string)
+            # print(norm_nuke_render_template_string)
 
-        #     # Set the quicktime defaults per our hook
-        #     file_type, file_options = self.execute_hook(
-        #         "hook_get_quicktime_settings", for_shotgun=False
-        #     )
-        #     properties = {
-        #         "exportTemplate": (
-        #             (
-        #                 script_hiero_str,
-        #                 ShotgunNukeShotPreset("", {"readPaths": [], "writePaths": []}),
-        #             ),
-        #             (
-        #                 render_hiero_str,
-        #                 FnExternalRender.NukeRenderPreset(
-        #                     "", {"file_type": "dpx", "dpx": {"datatype": "10 bit"}}
-        #                 ),
-        #             ),
-        #             (
-        #                 plate_hiero_str,
-        #                 ShotgunTranscodePreset(
-        #                     "", {"file_type": file_type, file_type: file_options}
-        #                 ),
-        #             ),
-        #         )
-        #     }
-        #     preset = ShotgunShotProcessorPreset(name, properties)
-        #     hiero.core.taskRegistry.removeProcessorPreset(name)
-        #     hiero.core.taskRegistry.addProcessorPreset(name, preset)
+            # get the format settings to use
+            dpx_properties = self.get_setting("dpx_write_node_properties")
+            exr_properties = self.get_setting("exr_write_node_properties")
+
+            # and set the default properties to be based off of those templates
+            properties = {
+                "exportTemplate": (
+                    (
+                        norm_hiero_plate_template_string,
+                        ShotgunCopyPreset(
+                            "", {}
+                        ),
+                    ),
+                    (
+                        norm_nuke_script_template_string,
+                        ShotgunNukeShotPreset(
+                            "", 
+                            {
+                                "readPaths": [norm_hiero_plate_template_string], 
+                                "writePaths": []
+                            },
+                            working_format,
+                        ),
+                    ),
+                    (
+                        norm_nuke_render_template_string,
+                        FnExternalRender.NukeRenderPreset(
+                            "", 
+                            {
+                                "file_type": working_format, 
+                                "exr": exr_properties, 
+                                "dpx": dpx_properties
+                            }
+                        ),
+                    ),
+                    
+                )
+            }
+            preset = ShotgunShotProcessorPreset(name, properties)
+            hiero.core.taskRegistry.removeProcessorPreset(name)
+            hiero.core.taskRegistry.addProcessorPreset(name, preset)
 
     def _validate_hiero_export_template(self, template_str):
         """
