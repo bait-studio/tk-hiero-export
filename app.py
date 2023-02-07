@@ -218,8 +218,7 @@ class HieroExport(Application):
     def _add_dynamic_export_preset(self, overwrite):
         # first step is to get the working format from the current project
         # Add Shotgun template
-        project_name = os.environ["SG_PROJECT_NAME"] if len(os.environ["SG_PROJECT_NAME"]) else "Unknown Project"
-        name = "SG Export ({})".format(project_name)
+        name = "SG Export"
         localpresets = [
             preset.name() for preset in hiero.core.taskRegistry.localPresets()
         ]
@@ -267,9 +266,8 @@ class HieroExport(Application):
             dpx_properties = self.get_setting("dpx_write_node_properties")
             exr_properties = self.get_setting("exr_write_node_properties")
 
-            # and set the default properties to be based off of those templates
-            properties = {
-                "exportTemplate": (
+            # generate the export template
+            export_template = (
                     (
                         norm_hiero_plate_template_string,
                         ShotgunCopyPreset(
@@ -300,6 +298,13 @@ class HieroExport(Application):
                     ),
                     
                 )
+
+            # and set the default properties to be based off of those templates
+            properties = {
+                "exportRoot": os.environ["SG_PROJECT_ROOT"],
+                "exportTemplate": export_template,
+                "startFrameIndex": 1001,
+                "startFrameSource": "Custom"
             }
             preset = ShotgunShotProcessorPreset(name, properties)
             hiero.core.taskRegistry.removeProcessorPreset(name)
