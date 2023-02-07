@@ -24,22 +24,7 @@ configuration:
         description: The string value of the Published File/Tank Type used for Nuke scripts.
         default_value: Nuke Script
 
-    nuke_script_toolkit_write_nodes_exr:
-        type: list
-        description: "A list of dictionaries in which you define the Sgtk write
-                     nodes that will be added to the published nuke scripts.
-                     Each dictionary entry needs to have the following keys:
-                     channel - the value for the 'output' knob in the created node.
-                     name - the profile name of the write node to create."
-        allows_empty: True
-        values:
-            type: dict
-            items:
-                channel: { type: str }
-                name: { type: str }
-        description:
-
-    nuke_script_toolkit_write_nodes_dpx:
+    nuke_script_toolkit_write_nodes:
         type: list
         description: "A list of dictionaries in which you define the Sgtk write
                      nodes that will be added to the published nuke scripts.
