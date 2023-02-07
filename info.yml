@@ -235,27 +235,11 @@ configuration:
         required_fields: []
         optional_fields: "*"
 
-    template_render_path_exr:
-        type: template
-        description: "A reference to a template which specifies what renders will
-                     be named. The translate template hook must understand how
-                     to translate this to Hiero keywords."
-        required_fields: []
-        optional_fields: "*"
-
     template_plate_path_dpx:
         type: template
         description: "A reference to a template which specifies the directory to
                      publish shot plates to.  The translate template hook must
                      understand how to translate this to Hiero keywords."
-        required_fields: []
-        optional_fields: "*"
-
-    template_render_path_dpx:
-        type: template
-        description: "A reference to a template which specifies what renders will
-                     be named. The translate template hook must understand how
-                     to translate this to Hiero keywords."
         required_fields: []
         optional_fields: "*"
 
