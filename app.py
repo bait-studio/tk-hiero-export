@@ -280,9 +280,9 @@ class HieroExport(Application):
                             "", 
                             {
                                 "readPaths": [norm_hiero_plate_template_string], 
-                                "writePaths": []
-                            },
-                            working_format,
+                                "writePaths": [],
+                                "toolkitWriteNodes": ['Toolkit Node: {} ("{}")'.format(working_format.upper(), working_format)]
+                            }
                         ),
                     ),
                     (
@@ -309,6 +309,8 @@ class HieroExport(Application):
             preset = ShotgunShotProcessorPreset(name, properties)
             hiero.core.taskRegistry.removeProcessorPreset(name)
             hiero.core.taskRegistry.addProcessorPreset(name, preset)
+
+            print("Added dynamic 'SG Export' template for project '{}' with working format '{}'.".format(os.environ["SG_PROJECT_NAME"], working_format))
 
     def _validate_hiero_export_template(self, template_str):
         """
