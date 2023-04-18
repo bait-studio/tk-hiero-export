@@ -108,11 +108,14 @@ class ShotgunCopyExporter(
     ShotgunHieroObjectBase, GCopyExporter.GCopyExporter, CollatingExporter
 ):
     """
-    Create CopyExporter object and send to Shotgun
+    Custom exporter that includes functionality from the FnCopyExporter and FnFrameExporter.
+    It does this so we can completely control collated plate copying during the copy task.
     """
 
     def __init__(self, initDict):
         """Constructor"""
+
+        # CopyExporter
         GCopyExporter.GCopyExporter.__init__(self, initDict)
         CollatingExporter.__init__(self)
         self._resolved_export_path = None

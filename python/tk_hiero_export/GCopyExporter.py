@@ -5,12 +5,12 @@ import shutil
 
 import hiero.core
 from hiero.core import util
-from hiero.exporters import FnFrameExporter
+from . import GCollatedFrameExporter
 
-class GCopyExporter(FnFrameExporter.FrameExporter):
+class GCopyExporter(GCollatedFrameExporter.GCollatedFrameExporter):
   def __init__( self, initDict ):
     """Initialize"""
-    FnFrameExporter.FrameExporter.__init__( self, initDict )
+    GCollatedFrameExporter.GCollatedFrameExporter.__init__( self, initDict )
     if self.nothingToDo():
       return
 
