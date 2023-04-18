@@ -17,8 +17,8 @@ import tempfile
 import inspect
 
 from hiero.exporters import FnExternalRender
-from hiero.exporters import FnCopyExporter
-from hiero.exporters import FnCopyExporterUI
+from . import GCopyExporter
+from . import GCopyExporterUI
 
 import hiero
 from hiero import core
@@ -47,7 +47,7 @@ if pathToBaitTasksPythonFolder not in sys.path:
 import BaitTasks
 
 class ShotgunCopyExporterUI(
-    ShotgunHieroObjectBase, FnCopyExporterUI.CopyExporterUI
+    ShotgunHieroObjectBase, GCopyExporterUI.GCopyExporterUI
 ):
     """
     Custom Preferences UI for the shotgun copy exporter
@@ -56,7 +56,7 @@ class ShotgunCopyExporterUI(
     """
 
     def __init__(self, preset):
-        FnCopyExporterUI.CopyExporterUI.__init__(self, preset)
+        GCopyExporterUI.GCopyExporterUI.__init__(self, preset)
         self._displayName = "SG Copy Files"
         self._taskType = ShotgunCopyExporter
 
@@ -85,7 +85,7 @@ class ShotgunCopyExporterUI(
             middle.setLayout(QtGui.QVBoxLayout())
 
         # populate the middle with the standard layout
-        FnCopyExporterUI.CopyExporterUI.populateUI(
+        GCopyExporterUI.GCopyExporterUI.populateUI(
             self, middle, exportTemplate
         )
 
@@ -105,7 +105,7 @@ class ShotgunCopyExporterUI(
 
 
 class ShotgunCopyExporter(
-    ShotgunHieroObjectBase, FnCopyExporter.CopyExporter, CollatingExporter
+    ShotgunHieroObjectBase, GCopyExporter.GCopyExporter, CollatingExporter
 ):
     """
     Create CopyExporter object and send to Shotgun
@@ -113,7 +113,7 @@ class ShotgunCopyExporter(
 
     def __init__(self, initDict):
         """Constructor"""
-        FnCopyExporter.CopyExporter.__init__(self, initDict)
+        GCopyExporter.GCopyExporter.__init__(self, initDict)
         CollatingExporter.__init__(self)
         self._resolved_export_path = None
         self._sequence_name = None
@@ -126,9 +126,9 @@ class ShotgunCopyExporter(
             if self.isCollated():
                 return self._parentSequence.name()
             else:
-                return FnCopyExporter.CopyExporter.sequenceName(self)
+                return GCopyExporter.sequenceName(self)
         except AttributeError:
-            return FnCopyExporter.CopyExporter.sequenceName(self)
+            return GCopyExporter.sequenceName(self)
 
     def writeAudio(self):
         """
@@ -142,7 +142,7 @@ class ShotgunCopyExporter(
         original = self._item
         self._item = item
 
-        result = FnCopyExporter.CopyExporter.writeAudio(self)
+        result = GCopyExporter.GCopyExporter.writeAudio(self)
 
         self._item = original
 
@@ -256,12 +256,12 @@ class ShotgunCopyExporter(
         except Exception:
             pass
 
-        return FnCopyExporter.CopyExporter.startTask(self)
+        return GCopyExporter.GCopyExporter.startTask(self)
 
     def finishTask(self):
         """Finish Task"""
         # run base class implementation
-        FnCopyExporter.CopyExporter.finishTask(self)
+        GCopyExporter.GCopyExporter.finishTask(self)
 
         # create publish
         ################
@@ -448,12 +448,12 @@ class ShotgunCopyExporter(
         self.app.log_info("Ran {} BaitTasks".format(len(tasks)))
 
 class ShotgunCopyPreset(
-    ShotgunHieroObjectBase, FnCopyExporter.CopyPreset, CollatedShotPreset
+    ShotgunHieroObjectBase, GCopyExporter.GCopyPreset, CollatedShotPreset
 ):
     """Settings for the SG copy step"""
 
     def __init__(self, name, properties):
-        FnCopyExporter.CopyPreset.__init__(self, name, properties)
+        GCopyExporter.GCopyPreset.__init__(self, name, properties)
         self._parentType = ShotgunCopyExporter
         CollatedShotPreset.__init__(self, self.properties())
 
