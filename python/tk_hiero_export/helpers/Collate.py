@@ -38,24 +38,28 @@ def _getOverlappingItemsForTrackItem(trackItem, allOtherItems):
     otherEnd = item.timelineOut()
 
     #1.
+    overlappingItem = None
     if otherStart >= start and otherEnd <= end:
-      overlappingItems.append(item)
+      overlappingItem = item
       #print("\t{} is contained within/the same as. {}-{} {}-{}".format(item, start, end, otherStart, otherEnd))
 
     #2.
     elif otherStart < start and otherEnd > start and otherEnd <= end:
-      overlappingItems.append(item)
+      overlappingItem = item
       #print("\t{} starts before, but ends during or at the same point. {}-{} {}-{}".format(item, start, end, otherStart, otherEnd))
 
     #3. 
     elif otherStart >= start and otherStart < end and otherEnd >= end:
-      overlappingItems.append(item)
+      overlappingItem = item
       #print("\t{} starts during or at same point and ends after or at same point. {}-{} {}-{}".format(item, start, end, otherStart, otherEnd))
 
     #4. 
     elif otherStart < start and otherEnd > end:
-      overlappingItems.append(item)
+      overlappingItem = item
       #print("\t{} starts before and ends after. {}-{} {}-{}".format(item, start, end, otherStart, otherEnd))
+    
+    if overlappingItem:
+      overlappingItems.append({"info":{}, "trackItem":overlappingItem})
 
   #Return collate info
   return overlappingItems
@@ -75,7 +79,10 @@ def getCollateInfoFromSequenceAndMainTrack(sequence, track):
   #For each of the main track items, get the collate info and store
   for mainTrackItem in mainTrackItems:
     collateInfo[mainTrackItem.guid()] = {
-      "item": mainTrackItem,
+      "mainItem": {
+          "info":{},
+          "trackItem": mainTrackItem
+        },
       "overlappingItems": _getOverlappingItemsForTrackItem(mainTrackItem, allOtherTrackItems)
     }
 

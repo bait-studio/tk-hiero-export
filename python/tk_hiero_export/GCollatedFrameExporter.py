@@ -38,14 +38,17 @@ class GCollatedFrameExporter(FnShotExporter.ShotTask):
     self._collateInfo = sequenceCollateInfo[self._item.guid()]
     
     # store paths for the main item
-    self._buildFileSequencePaths(self._collateInfo["item"])
+    self._buildFileSequencePaths(self._collateInfo["mainItem"])
     
     # additionally store paths for all overlapping items
     for item in self._collateInfo["overlappingItems"]:
-      self._buildFileSequencePaths(item, parentItem=self._collateInfo["item"])
+      self._buildFileSequencePaths(item, parentItemInfo=self._collateInfo["mainItem"])
 
-  def _buildFileSequencePaths(self, item, parentItem=None):
+  def _buildFileSequencePaths(self, collateInfo, parentItemInfo=None):
     """ Build the list of src/dst paths for each frame in a file sequence """
+    # pull out the track items from the collate info
+    item = collateInfo["trackItem"]
+    parentItem = parentItemInfo["trackItem"] if parentItemInfo else None
 
     # todo - determine resolved export path for the passed in item
     # we can use Hiero's resolvers to do this.
@@ -58,9 +61,15 @@ class GCollatedFrameExporter(FnShotExporter.ShotTask):
     resolverDuplicate = resolver.duplicate()
     resolverDuplicate.addResolver("{track}", "replaces track token with track name, filling spaces with underscores", item.parentTrack().name().replace(" ", "_"))
     thisItemResolvedExportPath = resolverDuplicate.resolve(self, self._exportPath, isPath=True)
+    thisItemResolvedExportPath = thisItemResolvedExportPath.replace("/", os.path.sep).replace("{}{}".format(os.path.sep, os.path.sep), os.path.sep)
+    
+    # store the resolved path in the collate info for use in start/finish task
+    collateInfo["info"]["resolvedPath"] = thisItemResolvedExportPath
     
     # Get the source start/end for this item
     sourceStart, sourceEnd = self._getSourceStartEndForItem(item.source(), item)
+    collateInfo["info"]["sourceStart"] = sourceStart
+    collateInfo["info"]["sourceEnd"] = sourceEnd
     
     # Get the timeline start/end for this item and the parent item.
     # We'll use this to offset secondary tracks' start frame if needed.

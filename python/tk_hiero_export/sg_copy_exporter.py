@@ -113,117 +113,130 @@ class ShotgunCopyExporter(
         
         if self.nothingToDo():
             return
-  
-        self._resolved_export_path = None
-        self._sequence_name = None
-        self._shot_name = None
-        self._thumbnail = None
+        
+    def prepSGInfoAndCreateSeqShot(self):
+        
+        # pull out the main/overlapping item info
+        mainItemCollateInfo = self._collateInfo["mainItem"]
+        overlappingItemsCollateInfo = self._collateInfo["overlappingItems"]
 
-    def startTask(self):
-        """Run Task"""
-        if self._resolved_export_path is None:
-            self._resolved_export_path = self.resolvedExportPath()
-            self._tk_version = self._formatTkVersionString(self.versionString())
-            self._sequence_name = self.sequenceName()
-
-            # convert slashes to native os style..
-            self._resolved_export_path = self._resolved_export_path.replace(
-                "/", os.path.sep
-            )
-
-        # call the get_shot hook
-        ########################
+        # not entirely sure what this is but keeping it around from the SG code
         if self.app.shot_count == 0:
             self.app.preprocess_data = {}
 
-        # associate publishes with correct shot, which will be the hero item
-        # if we are collating
-        item = self._item
-
-        # store the shot for use in finishTask. query the head/tail values set
-        # on the shot updater task so that we can set those values on the
-        # Version created later.
-        self._sg_shot = self.app.execute_hook(
+        # create the seq/shot if needed, and store for use in finishTask.
+        # query the head/tail values set on the shot updater task so that
+        # we can set those values on the Version created later.
+        SGMainShotInfo = self.app.execute_hook(
             "hook_get_shot",
             task=self,
-            item=item,
+            item=mainItemCollateInfo["trackItem"],
             data=self.app.preprocess_data,
             fields=["sg_head_in", "sg_tail_out"],
             base_class=HieroGetShot,
         )
 
-        # populate the data dictionary for our Version while the item is still valid
+        # populate the data dictionary for our Versions while the item is still valid
         ##############################
         # see if we get a task to use
-        self._sg_task = None
+        SGAssociatedTask = None
         try:
             task_filter = self.app.get_setting("default_task_filter", "[]")
             task_filter = ast.literal_eval(task_filter)
-            task_filter.append(["entity", "is", self._sg_shot])
+            task_filter.append(["entity", "is", SGMainShotInfo])
             tasks = self.app.shotgun.find("Task", task_filter)
             if len(tasks) == 1:
-                self._sg_task = tasks[0]
+                SGAssociatedTask = tasks[0]
         except ValueError:
             # continue without task
             setting = self.app.get_setting("default_task_filter", "[]")
             self.app.log_error("Invalid value for 'default_task_filter': %s" % setting)
-
+            
+        
+        SGVersionData = None
         if self._preset.properties()["create_version"]:
             # lookup current login
             sg_current_user = tank.util.get_current_user(self.app.tank)
 
-            file_name = os.path.basename(self._resolved_export_path)
-            file_name = os.path.splitext(file_name)[0]
-            file_name = file_name.capitalize()
-
-            # use the head/tail to populate frame first/last/range fields on
-            # the Version
-            head_in = self._sg_shot["sg_head_in"]
-            tail_out = self._sg_shot["sg_tail_out"]
-
-            self._version_data = {
-                "user": sg_current_user,
-                "created_by": sg_current_user,
-                "entity": self._sg_shot,
-                "project": self.app.context.project,
-                "sg_path_to_frames": self._resolved_export_path,
-                "code": file_name,
-                "sg_first_frame": head_in,
-                "sg_last_frame": tail_out,
-                "frame_range": "%s-%s" % (head_in, tail_out),
+            # get version data for main item
+            SGVersionData = {
+                "mainItem": self._getSGVersionInfoForItem(mainItemCollateInfo, sg_current_user, SGMainShotInfo, SGAssociatedTask),
+                "overlappingItems": {}
             }
 
-            if self._sg_task is not None:
-                self._version_data["sg_task"] = self._sg_task
+            # populate version data for each overlapping item, store lookup by track item GUID
+            for overlappingItemCollateInfo in overlappingItemsCollateInfo:
+                SGVersionData["overlappingItems"][overlappingItemCollateInfo["trackItem"].guid()] = self._getSGVersionInfoForItem(overlappingItemCollateInfo, sg_current_user, SGMainShotInfo, SGAssociatedTask)
+ 
 
-            # call the update version hook to allow for customization
-            self.app.execute_hook(
-                "hook_update_version_data",
-                version_data=self._version_data,
-                task=self,
-                base_class=HieroUpdateVersionData,
-            )
-
-        # figure out the thumbnail frame
-        ##########################
-        source = self._item.source()
-
+        # get thumbnail data for main item
+        SGThumbnailData = {
+            "mainItem": self._getThumbnailFromCollateInfo(mainItemCollateInfo), 
+            "overlappingItems": {}
+        }
+        
+        # populate thumbnail data for each overlapping item, store lookup by track item GUID
+        for overlappingItemCollateInfo in overlappingItemsCollateInfo:
+            SGThumbnailData["overlappingItems"][overlappingItemCollateInfo["trackItem"].guid()] = self._getThumbnailFromCollateInfo(overlappingItemCollateInfo)
+        
+        # store all of the generated info for use in finish task
+        self._sgInfo = {
+            "SGMainShotInfo": SGMainShotInfo,
+            "SGAssociatedTask": SGAssociatedTask,
+            "SGVersionData": SGVersionData,
+            "SGThumbnailData": SGThumbnailData
+        }
+        
+    def _getThumbnailFromCollateInfo(self, itemCollateInfo):
         # If we can't get a thumbnail it isn't the end of the world.
         # When we get to the upload we'll do nothing if we don't have
         # anything to work with, which will result in the same result
         # as if the thumbnail failed to upload.
         try:
-            self._thumbnail = source.thumbnail(self._item.sourceIn())
+            source = itemCollateInfo["trackItem"].source()
+            return source.thumbnail(self._item.sourceIn())
             # thumb.save("C:/Users/matt.brealey/Desktop/thumb.png", "PNG", -1)
         except Exception:
-            pass
+            return None
+    
+    def _getSGVersionInfoForItem(self, itemCollateInfo, user, mainShotInfo, associatedTask=None):
 
+        SGVersionData = {
+            "user": user,
+            "created_by": user,
+            "entity": mainShotInfo,
+            "project": self.app.context.project,
+            "sg_path_to_frames": itemCollateInfo["info"]["resolvedPath"],
+            "code": os.path.splitext(os.path.basename(itemCollateInfo["info"]["resolvedPath"]))[0].capitalize(),
+            "sg_first_frame": itemCollateInfo["info"]["sourceStart"],
+            "sg_last_frame": itemCollateInfo["info"]["sourceEnd"],
+            "frame_range": "%s-%s" % (itemCollateInfo["info"]["sourceStart"], itemCollateInfo["info"]["sourceEnd"]),
+        }
+
+        if associatedTask is not None:
+            SGVersionData["sg_task"] = associatedTask
+            
+        return SGVersionData
+
+    def startTask(self):
+        self.prepSGInfoAndCreateSeqShot()
         return GCollatedFrameExporter.GCollatedFrameExporter.startTask(self)
 
     def finishTask(self):
         """Finish Task"""
         # run base class implementation
         GCollatedFrameExporter.GCollatedFrameExporter.finishTask(self)
+        
+        # grab the stored data from startTask()
+        SGMainShotInfo = self._sgInfo["SGMainShotInfo"]
+        SGAssociatedTask = self._sgInfo["SGAssociatedTask"]
+        SGVersionData = self._sgInfo["SGVersionData"]
+        SGThumbnailData = self._sgInfo["SGThumbnailData"]
+        
+        print(SGMainShotInfo)
+        print(SGAssociatedTask)
+        print(SGVersionData)
+        print(SGThumbnailData)
         
         return
 
