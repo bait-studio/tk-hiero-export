@@ -9,20 +9,20 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 import os
+import os.path
 import ast
 import sys
 import time
 import shutil
-import tempfile
-import inspect
 
-from hiero.exporters import FnExternalRender
-from . import GCopyExporter
+from . import GCollatedFrameExporter
 import hiero.ui
 
 import hiero
 from hiero import core
 from hiero.core import *
+import hiero.core
+from hiero.core import util
 import hiero.core.nuke as nuke
 
 import tank
@@ -55,7 +55,7 @@ class ShotgunCopyExporterUI(
     """
 
     def __init__(self, preset):
-        hiero.ui.TaskUIBase.__init__(self, GCopyExporter.GCopyExporter, preset, "Custom Copy Exporter")
+        hiero.ui.TaskUIBase.__init__(self, GCollatedFrameExporter.GCollatedFrameExporter, preset, "Custom Copy Exporter")
         self._displayName = "SG Copy Files"
         self._taskType = ShotgunCopyExporter
 
@@ -104,7 +104,7 @@ class ShotgunCopyExporterUI(
 
 
 class ShotgunCopyExporter(
-    ShotgunHieroObjectBase, GCopyExporter.GCopyExporter
+    ShotgunHieroObjectBase, GCollatedFrameExporter.GCollatedFrameExporter
 ):
     """
     Custom exporter that includes functionality from the FnCopyExporter and FnFrameExporter.
@@ -115,7 +115,11 @@ class ShotgunCopyExporter(
         """Constructor"""
 
         # CopyExporter
-        GCopyExporter.GCopyExporter.__init__(self, initDict)
+        GCollatedFrameExporter.GCollatedFrameExporter.__init__( self, initDict )
+        
+        if self.nothingToDo():
+            return
+  
         self._resolved_export_path = None
         self._sequence_name = None
         self._shot_name = None
@@ -227,12 +231,12 @@ class ShotgunCopyExporter(
         except Exception:
             pass
 
-        return GCopyExporter.GCopyExporter.startTask(self)
+        return GCollatedFrameExporter.GCollatedFrameExporter.startTask(self)
 
     def finishTask(self):
         """Finish Task"""
         # run base class implementation
-        GCopyExporter.GCopyExporter.finishTask(self)
+        GCollatedFrameExporter.GCollatedFrameExporter.finishTask(self)
 
         # create publish
         ################
@@ -417,6 +421,45 @@ class ShotgunCopyExporter(
         #Run the Tasks
         BaitTasks.Handler.default.addTasksToQueue(tasks, autoStart=True)
         self.app.log_info("Ran {} BaitTasks".format(len(tasks)))
+        
+    def _tryCopy(self,src, dst):
+        """Attempts to copy src file to dst, including the permission bits, last access time, last modification time, and flags"""
+
+        hiero.core.log.info("Attempting to copy %s to %s" % (src, dst))
+        
+        try:
+            shutil.copy2(util.asUnicode(src), util.asUnicode(dst))
+        except shutil.Error as e:
+            # Dont need to report this as an error
+            if e.message.endswith("are the same file"):
+                pass
+            else:
+                self.setError("Unable to copy file. %s" % e.message)
+        except OSError as err:
+            # If the OS returns an ENOTSUP error (45), for example when trying to set
+            # flags on an NFS mounted volume that doesn't support them, Python should
+            # absorb this.  However, a regression in Python 2.7.3 causes this not to
+            # be the case, and the error is thrown as an exception.  We therefore
+            # catch this explicitly as value 45, since errno.ENOTSUP is not defined
+            # in Python 2.7.2 (which is part of the problem).  See the following
+            # link for further information: http://bugs.python.org/issue14662
+            # See TP 199072.
+            if err.errno == 45: # ENOTSUP
+                pass
+            else:
+                raise
+
+    def doFrame(self, src, dst):
+        hiero.core.log.info( "SG_Copy_Exporter. DoFrame" )
+        hiero.core.log.info( "  - source: " + str(src) )
+        hiero.core.log.info( "  - destination: " + str(dst) )
+
+        # Find the base destination directory, if it doesn't exist create it
+        dstdir = os.path.dirname(dst)
+        util.filesystem.makeDirs(dstdir)
+
+        # Copy file including the permission bits, last access time, last modification time, and flags
+        self._tryCopy(src, dst)
 
 class ShotgunCopyPreset(
     ShotgunHieroObjectBase, hiero.core.TaskPresetBase
@@ -424,7 +467,7 @@ class ShotgunCopyPreset(
     """Settings for the SG copy step"""
 
     def __init__(self, name, properties):
-        hiero.core.TaskPresetBase.__init__(self, GCopyExporter, name)
+        hiero.core.TaskPresetBase.__init__(self, GCollatedFrameExporter, name)
         self._parentType = ShotgunCopyExporter
 
         # set default values
