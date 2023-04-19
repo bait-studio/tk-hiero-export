@@ -11,6 +11,7 @@ import hiero.core.log
 
 from hiero.exporters import FnShotExporter
 
+from .helpers import Collate
 
 class GCollatedFrameExporter(FnShotExporter.ShotTask):
   """ 
@@ -26,46 +27,91 @@ class GCollatedFrameExporter(FnShotExporter.ShotTask):
     if not self._source.isMediaPresent() and self._skipOffline:
       return
 
-    self._buildFileSequencePaths()
+    # build a dict containing all paths from the main and collated track items
+    self._buildCollatedFileSequencePaths()
+    
+  def _buildCollatedFileSequencePaths(self):
+    # get collate info for the entire sequence
+    sequenceCollateInfo = Collate.getCollateInfoFromSequenceAndMainTrack(self._item.parentSequence(), self._item.parentTrack())
+    
+    # extract info just for this shot
+    self._collateInfo = sequenceCollateInfo[self._item.guid()]
+    
+    # store paths for the main item
+    self._buildFileSequencePaths(self._collateInfo["item"])
+    
+    # additionally store paths for all overlapping items
+    for item in self._collateInfo["overlappingItems"]:
+      self._buildFileSequencePaths(item, parentItem=self._collateInfo["item"])
 
-  def _buildFileSequencePaths(self):
+  def _buildFileSequencePaths(self, item, parentItem=None):
     """ Build the list of src/dst paths for each frame in a file sequence """
-    start = self._clip.sourceIn()
-    end = self._clip.sourceOut()
+
+    # todo - determine resolved export path for the passed in item
+    # we can use Hiero's resolvers to do this.
+    # there's likely a way we can easily spawn a task here to use with FnResolveTable.resolve
+    # but I don't have time to figure that out right now.
+    # instead I'll duplicate the current resolve table, and override the values
+    # that actually change between the items we'll pass into this function.
+    # right now, that's just {track}
+    resolver = self._resolver
+    resolverDuplicate = resolver.duplicate()
+    resolverDuplicate.addResolver("{track}", "replaces track token with track name, filling spaces with underscores", item.parentTrack().name().replace(" ", "_"))
+    thisItemResolvedExportPath = resolverDuplicate.resolve(self, self._exportPath, isPath=True)
+    
+    # Get the source start/end for this item
+    sourceStart, sourceEnd = self._getSourceStartEndForItem(item.source(), item)
+    
+    # Get the timeline start/end for this item and the parent item.
+    # We'll use this to offset secondary tracks' start frame if needed.
+    timelineStart = item.timelineIn()
+    parentTimelineStart = parentItem.timelineIn() if parentItem else timelineStart
+    frameOffsetFromParentItemStart = timelineStart - parentTimelineStart
+
+    srcPath = hiero.core.util.HashesToPrintf(item.source().mediaSource().fileinfos()[0].filename())
+    dstPath = hiero.core.util.HashesToPrintf(thisItemResolvedExportPath)
+    
+    # Determine the offset between the source frame and the timeline frame.
+    # This takes custom start frame(e.g. 1001) into account.
+    # It also needs to be relative to the parentItem start frame if given.
+    dstFrameOffset = (self._startFrame - sourceStart if self._startFrame is not None else 0) + frameOffsetFromParentItemStart
+    for srcFrame in range(sourceStart, sourceEnd+1):
+      srcFramePath = srcPath % srcFrame
+      dstFrame = srcFrame + dstFrameOffset
+      dstFramePath = self.formatFrameNumbers(dstPath, dstFrame, 1)
+      self._paths.append( (srcFramePath, dstFramePath) )
+    
+  def _getSourceStartEndForItem(self, clip, item):
+    sourceStart = clip.sourceIn()
+    sourceEnd = clip.sourceOut()
+    
     # If exporting just the cut
     if self._cutHandles is not None:
       handles = self._cutHandles
 
       if self._retime:
         # Compensate for retime
-        handles *= abs(self._item.playbackSpeed())
+        handles *= abs(item.playbackSpeed())
 
       # Ensure _start <= _end (for negative retimes, sourceIn > sourceOut)
-      sourceInOut = (self._item.sourceIn(), self._item.sourceOut())
-      start = min(sourceInOut)
-      end = max(sourceInOut)
+      sourceInOut = (item.sourceIn(), item.sourceOut())
+      sourceStart = min(sourceInOut)
+      sourceEnd = max(sourceInOut)
 
       # This accounts for clips which do not start at frame 0 (e.g. dpx sequence starting at frame number 30)
       # We offset the TrackItem's in/out by clip's start frame.
-      start += self._clip.sourceIn()
-      end += self._clip.sourceIn()
+      sourceStart += clip.sourceIn()
+      sourceEnd += clip.sourceIn()
 
       # Add Handles
-      start = max(start - handles, self._clip.sourceIn())
-      end   = min(end + handles, self._clip.sourceOut())
+      sourceStart = max(sourceStart - handles, clip.sourceIn())
+      sourceEnd   = min(sourceEnd + handles, clip.sourceOut())
 
     # Make sure values are integers
-    start = int(math.floor(start))
-    end = int(math.ceil(end))
-
-    srcPath = hiero.core.util.HashesToPrintf(self._source.fileinfos()[0].filename())
-    dstPath = hiero.core.util.HashesToPrintf(self.resolvedExportPath())
-    dstFrameOffset = self._startFrame - start if self._startFrame is not None else 0
-    for srcFrame in range(start, end+1):
-      srcFramePath = srcPath % srcFrame
-      dstFrame = srcFrame + dstFrameOffset
-      dstFramePath = self.formatFrameNumbers(dstPath, dstFrame, 1)
-      self._paths.append( (srcFramePath, dstFramePath) )
+    sourceStart = int(math.floor(sourceStart))
+    sourceEnd = int(math.ceil(sourceEnd))
+    
+    return sourceStart, sourceEnd
 
   def nothingToDo(self):
     return len(self._paths) == 0

@@ -224,6 +224,8 @@ class ShotgunCopyExporter(
         """Finish Task"""
         # run base class implementation
         GCollatedFrameExporter.GCollatedFrameExporter.finishTask(self)
+        
+        return
 
         # create publish
         ################
