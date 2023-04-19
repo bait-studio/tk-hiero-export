@@ -303,6 +303,7 @@ class HieroExport(Application):
             properties = {
                 "exportRoot": os.environ["SG_PROJECT_ROOT"],
                 "exportTemplate": export_template,
+                "cutLength": True,
                 "startFrameIndex": 1001,
                 "startFrameSource": "Custom"
             }
