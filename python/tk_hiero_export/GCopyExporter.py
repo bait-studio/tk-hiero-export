@@ -53,18 +53,3 @@ class GCopyExporter(GCollatedFrameExporter.GCollatedFrameExporter):
     # Copy file including the permission bits, last access time, last modification time, and flags
     self._tryCopy(src, dst)
 
-
-class GCopyPreset(hiero.core.TaskPresetBase):
-  def __init__(self, name, properties):
-    hiero.core.TaskPresetBase.__init__(self, GCopyExporter, name)
-    # Set any preset defaults here
-    # self.properties()["SomeProperty"] = "SomeValue"
-    
-    # Update preset with loaded data
-    self.properties().update(properties)
-
-  def supportedItems(self):
-    return hiero.core.TaskPresetBase.kTrackItem
-
-
-hiero.core.taskRegistry.registerTask(GCopyPreset, GCopyExporter)

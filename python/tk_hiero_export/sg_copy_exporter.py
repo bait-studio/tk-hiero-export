@@ -30,7 +30,6 @@ import sgtk.util
 from sgtk.platform.qt import QtGui, QtCore
 
 from .base import ShotgunHieroObjectBase
-from .collating_exporter import CollatingExporter, CollatedShotPreset
 
 from . import (
     HieroGetQuicktimeSettings,
@@ -85,7 +84,7 @@ class ShotgunCopyExporterUI(
             middle.setLayout(QtGui.QVBoxLayout())
 
         # populate the middle with the standard layout
-        GCopyExporterUI.GCopyExporterUI.populateUI(
+        hiero.ui.TaskUIBase.populateUI(
             self, middle, exportTemplate
         )
 
@@ -105,7 +104,7 @@ class ShotgunCopyExporterUI(
 
 
 class ShotgunCopyExporter(
-    ShotgunHieroObjectBase, GCopyExporter.GCopyExporter, CollatingExporter
+    ShotgunHieroObjectBase, GCopyExporter.GCopyExporter
 ):
     """
     Custom exporter that includes functionality from the FnCopyExporter and FnFrameExporter.
@@ -117,39 +116,10 @@ class ShotgunCopyExporter(
 
         # CopyExporter
         GCopyExporter.GCopyExporter.__init__(self, initDict)
-        CollatingExporter.__init__(self)
         self._resolved_export_path = None
         self._sequence_name = None
         self._shot_name = None
         self._thumbnail = None
-
-    def sequenceName(self):
-        """override default sequenceName() to handle collated shots"""
-        try:
-            if self.isCollated():
-                return self._parentSequence.name()
-            else:
-                return GCopyExporter.sequenceName(self)
-        except AttributeError:
-            return GCopyExporter.sequenceName(self)
-
-    def writeAudio(self):
-        """
-        Overridden method to allow proper timings for audio export
-        """
-        item = self._item
-        if item.guid() in self._collatedItemsMap:
-            item = self._collatedItemsMap[item.guid()]
-
-        # Call parent method with swapped items in order to get proper timings
-        original = self._item
-        self._item = item
-
-        result = GCopyExporter.GCopyExporter.writeAudio(self)
-
-        self._item = original
-
-        return result
 
     def startTask(self):
         """Run Task"""
@@ -170,10 +140,7 @@ class ShotgunCopyExporter(
 
         # associate publishes with correct shot, which will be the hero item
         # if we are collating
-        if self.isCollated() and not self.isHero():
-            item = self.heroItem()
-        else:
-            item = self._item
+        item = self._item
 
         # store the shot for use in finishTask. query the head/tail values set
         # on the shot updater task so that we can set those values on the
@@ -452,16 +419,16 @@ class ShotgunCopyExporter(
         self.app.log_info("Ran {} BaitTasks".format(len(tasks)))
 
 class ShotgunCopyPreset(
-    ShotgunHieroObjectBase, GCopyExporter.GCopyPreset, CollatedShotPreset
+    ShotgunHieroObjectBase, hiero.core.TaskPresetBase
 ):
     """Settings for the SG copy step"""
 
     def __init__(self, name, properties):
-        GCopyExporter.GCopyPreset.__init__(self, name, properties)
+        hiero.core.TaskPresetBase.__init__(self, GCopyExporter, name)
         self._parentType = ShotgunCopyExporter
-        CollatedShotPreset.__init__(self, self.properties())
 
         # set default values
+        self.properties().update(properties)
         self._properties["create_version"] = True
 
         # Handle custom properties from the customize_export_ui hook.
@@ -470,3 +437,6 @@ class ShotgunCopyPreset(
         )
 
         self.properties().update({d["name"]: d["value"] for d in custom_properties})
+        
+    def supportedItems(self):
+        return hiero.core.TaskPresetBase.kTrackItem
