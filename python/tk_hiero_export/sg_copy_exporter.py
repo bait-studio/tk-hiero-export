@@ -18,7 +18,7 @@ import inspect
 
 from hiero.exporters import FnExternalRender
 from . import GCopyExporter
-from . import GCopyExporterUI
+import hiero.ui
 
 import hiero
 from hiero import core
@@ -47,7 +47,7 @@ if pathToBaitTasksPythonFolder not in sys.path:
 import BaitTasks
 
 class ShotgunCopyExporterUI(
-    ShotgunHieroObjectBase, GCopyExporterUI.GCopyExporterUI
+    ShotgunHieroObjectBase, hiero.ui.TaskUIBase
 ):
     """
     Custom Preferences UI for the shotgun copy exporter
@@ -56,7 +56,7 @@ class ShotgunCopyExporterUI(
     """
 
     def __init__(self, preset):
-        GCopyExporterUI.GCopyExporterUI.__init__(self, preset)
+        hiero.ui.TaskUIBase.__init__(self, GCopyExporter.GCopyExporter, preset, "Custom Copy Exporter")
         self._displayName = "SG Copy Files"
         self._taskType = ShotgunCopyExporter
 
@@ -256,6 +256,7 @@ class ShotgunCopyExporter(
         # as if the thumbnail failed to upload.
         try:
             self._thumbnail = source.thumbnail(self._item.sourceIn())
+            # thumb.save("C:/Users/matt.brealey/Desktop/thumb.png", "PNG", -1)
         except Exception:
             pass
 
