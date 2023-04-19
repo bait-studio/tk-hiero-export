@@ -32,18 +32,12 @@ from sgtk.platform.qt import QtGui, QtCore
 from .base import ShotgunHieroObjectBase
 
 from . import (
-    HieroGetQuicktimeSettings,
     HieroGetShot,
     HieroUpdateVersionData,
-    HieroGetExtraPublishData,
     HieroPostVersionCreation,
 )
 
-pathToBaitTasksPythonFolder = os.environ.get("BAIT_TASKS_PYTHON_DIR", None)
-assert pathToBaitTasksPythonFolder != None
-if pathToBaitTasksPythonFolder not in sys.path:
-    sys.path.append(pathToBaitTasksPythonFolder)
-import BaitTasks
+from .helpers import TaskHelpers
 
 class ShotgunCopyExporterUI(
     ShotgunHieroObjectBase, hiero.ui.TaskUIBase
@@ -210,13 +204,6 @@ class ShotgunCopyExporter(
                 base_class=HieroUpdateVersionData,
             )
 
-        # call the publish data hook to allow for publish customization
-        self._extra_publish_data = self.app.execute_hook(
-            "hook_get_extra_publish_data",
-            task=self,
-            base_class=HieroGetExtraPublishData,
-        )
-
         # figure out the thumbnail frame
         ##########################
         source = self._item.source()
@@ -264,23 +251,10 @@ class ShotgunCopyExporter(
         # register publish
         self.app.log_debug("Register publish in shotgun: %s" % str(args))
         pub_data = tank.util.register_publish(**args)
-        if self._extra_publish_data is not None:
-            self.app.log_debug(
-                "Updating SG %s %s"
-                % (published_file_entity_type, str(self._extra_publish_data))
-            )
-            self.app.shotgun.update(
-                pub_data["type"], pub_data["id"], self._extra_publish_data
-            )
 
         # upload thumbnail for publish
         if self._thumbnail:
             self._upload_thumbnail_to_sg(pub_data, self._thumbnail)
-        else:
-            self.app.log_debug(
-                "There was no thumbnail available for %s %s"
-                % (published_file_entity_type, str(self._extra_publish_data))
-            )
 
         # create version
         ################
@@ -306,122 +280,8 @@ class ShotgunCopyExporter(
         # Web-reviewable media creation
         ####################
         if vers:
-            self.createWebReviewable(vers,  ctx.to_dict())
-
-        # Update the cut item if possible
-        #################################
-        if vers and hasattr(self, "_cut_item_data"):
-
-            # a version was created and we have a cut item to update.
-
-            # just make sure the cut item data has an id which should imply that
-            # it was created in the db.
-            if "id" in self._cut_item_data:
-                cut_item_id = self._cut_item_data["id"]
-
-                # update the Cut item with the newly uploaded version
-                self.app.shotgun.update("CutItem", cut_item_id, {"version": vers})
-                self.app.log_debug("Attached version to cut item.")
-
-                # upload a thumbnail for the cut item as well
-                if self._thumbnail:
-                    self._upload_thumbnail_to_sg(
-                        {"type": "CutItem", "id": cut_item_id}, self._thumbnail
-                    )
-
-        # Log usage metrics
-        try:
-            self.app.log_metric("Copy & Publish", log_version=True)
-        except:
-            # ingore any errors. ex: metrics logging not supported
-            pass
-
-    def createWebReviewable(self, versionInfo, contextDict):
-        # create output nukescript path
-        cleanedPathToFrames = versionInfo["sg_path_to_frames"].replace(os.path.sep, "/")
-        pathToFramesNoExt = cleanedPathToFrames.split(".####")[0]
-        outputNukeScriptPath = "{}.nk".format(pathToFramesNoExt)
-
-        # get path to the bait tasks transcode templates
-        pathToBaitTasksFolder = os.environ.get("BAIT_TASKS_DIR", None)
-        if not pathToBaitTasksFolder:
-            self.app.log_error("Could not find Bait Tasks directory in os.environ")
-            return False
-
-        # get frame in/out from version
-        frameIn = versionInfo["sg_first_frame"]
-        frameOut = versionInfo["sg_last_frame"]
-
-        # set the deadline vars
-        submitTime = time.strftime("%H:%M", time.localtime())
-        batchGroupName = batchGroupName = "{} | Ingest | {} | {}".format(versionInfo["code"], versionInfo["project"]["name"], submitTime)
-        nukeVersion = "{}.{}".format(nuke.nuke.NUKE_VERSION_MAJOR, nuke.nuke.NUKE_VERSION_MINOR)
-        nukeMachineList = []
-
-        # collate tasks
-        tasks = []
-
-        # create task to generate web-reviewable nuke script from transcode templates
-        outputMovPath = outputNukeScriptPath.replace(".nk", ".mov") #TODO - pull from template
-        templateScriptPath = os.path.join(pathToBaitTasksFolder, "nukescripts", "TranscodeScriptExample.nk")
-        nukeWebReviewableScriptCreationTask = BaitTasks.Tasks.Nuke.NukeGenerateScriptFromTranscodeTemplate(
-            cleanedPathToFrames,
-            outputMovPath,
-            templateScriptPath,
-            outputNukeScriptPath,
-            frameIn,
-            frameOut,
-            supressFileSavedCheck=True,
-            supressWriteNodeCheck=True
-        )
-        tasks.append(nukeWebReviewableScriptCreationTask)
-
-        #Submit web-reviewable script to deadline
-        submitWebReviewableToDeadlineTask = BaitTasks.Tasks.Deadline.SubmitNukeScript(
-            "WebReviewable: {}".format(os.path.basename(outputNukeScriptPath.replace(".nk", ""))),
-            outputNukeScriptPath,
-            outputMovPath,
-            frameIn,
-            frameOut,
-            comment="The web-reviewable render",
-            nukeVersion=nukeVersion,
-            machineList=nukeMachineList,
-            batchGroupName=batchGroupName,
-            sameWorker=True
-        )
-        tasks.append(submitWebReviewableToDeadlineTask)
-
-        #Add an upload web reviewable shotgrid subtask. This will run via a RunBaitTasks task that we'll create in a second
-        uploadWebReviewableVersionMediaTask = BaitTasks.Tasks.ShotGrid.SubTasks.ShotGridUploadWebReviewable(
-            outputMovPath,
-            versionInfo["project"]["id"],
-            entityType="Version",
-            entityID=versionInfo["id"],
-        )
-
-        #Run the webreviewable upload once the render is complete
-        runWebReviewableUploadAndStatusUpdateShotgunTasks = BaitTasks.Tasks.Deadline.RunBaitTasks(
-            "Upload Web-Reviewable",
-            [BaitTasks.Tasks.ShotGrid.ShotGridUpdater([uploadWebReviewableVersionMediaTask])], 
-            "2.7",
-            "Uploading of web-reviewable media",
-            machineList=nukeMachineList,
-            batchGroupName=batchGroupName,
-            upstreamDeadlineTaskIDs=[submitWebReviewableToDeadlineTask.id]
-        )
-        tasks.append(runWebReviewableUploadAndStatusUpdateShotgunTasks)
-
-        self.app.log_info(versionInfo)
-        self.app.log_info(contextDict)
-        self.app.log_info("Created {} BaitTasks".format(len(tasks)))
-        for task in tasks:
-            self.app.log_info(task.serialise())
-            self.app.log_info("")
-
-        #Run the Tasks
-        BaitTasks.Handler.default.addTasksToQueue(tasks, autoStart=True)
-        self.app.log_info("Ran {} BaitTasks".format(len(tasks)))
-        
+            TaskHelpers.createWebReviewable(self, vers)
+    
     def _tryCopy(self,src, dst):
         """Attempts to copy src file to dst, including the permission bits, last access time, last modification time, and flags"""
 
