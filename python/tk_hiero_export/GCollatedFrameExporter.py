@@ -26,30 +26,7 @@ class GCollatedFrameExporter(FnShotExporter.ShotTask):
     if not self._source.isMediaPresent() and self._skipOffline:
       return
 
-    if self._source.singleFile():
-      self._buildVideoClipPaths()
-    else:
-      self._buildFileSequencePaths()
-
-  def _buildVideoClipPaths(self):
-    """ Build the list of src/dst paths for video clips. """
-    srcPath = self._source.fileinfos()[0].filename()
-
-    # If the source is r3d, include 'associated files' which covers sequences
-    # of r3d files, and rmd sidecar files.
-    includeAssociatedFiles = srcPath.lower().endswith(".r3d")
-    if includeAssociatedFiles:
-      srcPaths = [srcPath] + self._source.associatedFilePaths()
-      # For each source file, temporarily replace the _filename variable which is used
-      # for resolving the destination path
-      for srcPath in srcPaths:
-        tmp = self._filename
-        self._filename = os.path.basename(srcPath)
-        self._paths.append( (srcPath, self.resolvedExportPath()) )
-        self._filename = tmp
-    else:
-      self._paths.append( (srcPath, self.resolvedExportPath()) )
-
+    self._buildFileSequencePaths()
 
   def _buildFileSequencePaths(self):
     """ Build the list of src/dst paths for each frame in a file sequence """

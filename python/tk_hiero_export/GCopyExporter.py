@@ -64,7 +64,7 @@ class GCopyPreset(hiero.core.TaskPresetBase):
     self.properties().update(properties)
 
   def supportedItems(self):
-    return (hiero.core.TaskPresetBase.kTrackItem | hiero.core.TaskPresetBase.kClip) | hiero.core.TaskPresetBase.kAudioTrackItem
+    return hiero.core.TaskPresetBase.kTrackItem
 
 
 hiero.core.taskRegistry.registerTask(GCopyPreset, GCopyExporter)
