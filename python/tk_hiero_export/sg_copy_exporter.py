@@ -283,14 +283,6 @@ class ShotgunCopyExporter(
             self.app.log_debug("Creating SG Version %s" % str(self._version_data))
             vers = self.app.shotgun.create("Version", self._version_data)
 
-        # Post creation hook
-        ####################
-        if vers:
-            self.app.execute_hook(
-                "hook_post_version_creation",
-                version_data=vers,
-                base_class=HieroPostVersionCreation,
-            )
 
         # Web-reviewable media creation
         ####################
