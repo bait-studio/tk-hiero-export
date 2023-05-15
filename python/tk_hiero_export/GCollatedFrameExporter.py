@@ -61,7 +61,10 @@ class GCollatedFrameExporter(FnShotExporter.ShotTask):
     resolverDuplicate = resolver.duplicate()
     resolverDuplicate.addResolver("{track}", "replaces track token with track name, filling spaces with underscores", item.parentTrack().name().replace(" ", "_"))
     thisItemResolvedExportPath = resolverDuplicate.resolve(self, self._exportPath, isPath=True)
-    thisItemResolvedExportPath = thisItemResolvedExportPath.replace("/", os.path.sep).replace("{}{}".format(os.path.sep, os.path.sep), os.path.sep)
+    
+    # at this point the path is likely a mix of forward/backslashes due to how nuke/SG handle things differently.
+    # make them all forward slashes (i.e. nuke style)
+    thisItemResolvedExportPath = thisItemResolvedExportPath.replace("\\", "/")
     
     # store the resolved path in the collate info for use in start/finish task
     collateInfo["info"]["resolvedPath"] = thisItemResolvedExportPath
@@ -89,6 +92,10 @@ class GCollatedFrameExporter(FnShotExporter.ShotTask):
       dstFrame = srcFrame + dstFrameOffset
       dstFramePath = self.formatFrameNumbers(dstPath, dstFrame, 1)
       self._paths.append( (srcFramePath, dstFramePath) )
+      
+    # store the targetStart/end. 
+    collateInfo["info"]["targetStart"] = sourceStart + dstFrameOffset
+    collateInfo["info"]["targetEnd"] = sourceEnd + dstFrameOffset
     
   def _getSourceStartEndForItem(self, clip, item):
     sourceStart = clip.sourceIn()

@@ -178,13 +178,14 @@ class ShotgunCopyExporter(
         # populate thumbnail data for each overlapping item, store lookup by track item GUID
         for overlappingItemCollateInfo in overlappingItemsCollateInfo:
             SGThumbnailData["overlappingItems"][overlappingItemCollateInfo["trackItem"].guid()] = self._getThumbnailFromCollateInfo(overlappingItemCollateInfo)
-        
+                
         # store all of the generated info for use in finish task
         self._sgInfo = {
             "SGMainShotInfo": SGMainShotInfo,
             "SGAssociatedTask": SGAssociatedTask,
             "SGVersionData": SGVersionData,
-            "SGThumbnailData": SGThumbnailData
+            "SGThumbnailData": SGThumbnailData,
+            "SGVersionNum": self._formatTkVersionString(self.versionString())
         }
         
     def _getThumbnailFromCollateInfo(self, itemCollateInfo):
@@ -201,6 +202,7 @@ class ShotgunCopyExporter(
     
     def _getSGVersionInfoForItem(self, itemCollateInfo, user, mainShotInfo, associatedTask=None):
 
+        # Create the dict ensuring to use the target start/end frames (e.g. 1001)
         SGVersionData = {
             "user": user,
             "created_by": user,
@@ -208,9 +210,9 @@ class ShotgunCopyExporter(
             "project": self.app.context.project,
             "sg_path_to_frames": itemCollateInfo["info"]["resolvedPath"],
             "code": os.path.splitext(os.path.basename(itemCollateInfo["info"]["resolvedPath"]))[0].capitalize(),
-            "sg_first_frame": itemCollateInfo["info"]["sourceStart"],
-            "sg_last_frame": itemCollateInfo["info"]["sourceEnd"],
-            "frame_range": "%s-%s" % (itemCollateInfo["info"]["sourceStart"], itemCollateInfo["info"]["sourceEnd"]),
+            "sg_first_frame": itemCollateInfo["info"]["targetStart"],
+            "sg_last_frame": itemCollateInfo["info"]["targetEnd"],
+            "frame_range": "%s-%s" % (itemCollateInfo["info"]["targetStart"], itemCollateInfo["info"]["targetEnd"]),
         }
 
         if associatedTask is not None:
@@ -237,52 +239,56 @@ class ShotgunCopyExporter(
         print(SGAssociatedTask)
         print(SGVersionData)
         print(SGThumbnailData)
+        print(self._sgInfo["SGVersionNum"])
         
-        return
+        # by using entity instead of export path to get context, this ensures
+        # collated plates get linked to the hero shot
+        ctx = self.app.tank.context_from_entity("Shot", SGMainShotInfo["id"])
+        published_file_type = self.app.get_setting("plate_published_file_type")
+        published_file_entity_type = sgtk.util.get_published_file_entity_type(self.app.sgtk)
+
+        # TODO - Run this for every collated item
+        # Publish the main track item
+        resolved_export_path = SGVersionData["mainItem"]["sg_path_to_frames"]
+        version_data = SGVersionData["mainItem"]
+        thumbnail = SGThumbnailData["mainItem"]
+        self._publishTrackItem(ctx, published_file_type, published_file_entity_type, resolved_export_path, thumbnail, version_data)
+    
+    def _publishTrackItem(self, ctx, published_file_type, published_file_entity_type, resolved_export_path, thumbnail, version_data):
 
         # create publish
         ################
-        # by using entity instead of export path to get context, this ensures
-        # collated plates get linked to the hero shot
-        ctx = self.app.tank.context_from_entity("Shot", self._sg_shot["id"])
-        published_file_type = self.app.get_setting("plate_published_file_type")
-
         args = {
             "tk": self.app.tank,
             "context": ctx,
-            "path": self._resolved_export_path,
-            "name": os.path.basename(self._resolved_export_path),
-            "version_number": int(self._tk_version),
+            "path": resolved_export_path,
+            "name": os.path.basename(resolved_export_path),
+            "version_number": int(self._sgInfo["SGVersionNum"]),
             "published_file_type": published_file_type,
         }
 
-        if self._sg_task is not None:
-            args["task"] = self._sg_task
-
-        published_file_entity_type = sgtk.util.get_published_file_entity_type(
-            self.app.sgtk
-        )
-
+        if self._sgInfo["SGAssociatedTask"] is not None:
+            args["task"] = self._sgInfo["SGAssociatedTask"]
+       
         # register publish
         self.app.log_debug("Register publish in shotgun: %s" % str(args))
         pub_data = tank.util.register_publish(**args)
 
         # upload thumbnail for publish
-        if self._thumbnail:
-            self._upload_thumbnail_to_sg(pub_data, self._thumbnail)
+        if thumbnail:
+            self._upload_thumbnail_to_sg(pub_data, thumbnail)
 
         # create version
         ################
         vers = None
         if self._preset.properties()["create_version"]:
             if published_file_entity_type == "PublishedFile":
-                self._version_data["published_files"] = [pub_data]
+                version_data["published_files"] = [pub_data]
             else:  # == "TankPublishedFile
-                self._version_data["tank_published_file"] = pub_data
+                version_data["tank_published_file"] = pub_data
 
-            self.app.log_debug("Creating SG Version %s" % str(self._version_data))
-            vers = self.app.shotgun.create("Version", self._version_data)
-
+            self.app.log_debug("Creating SG Version %s" % str(version_data))
+            vers = self.app.shotgun.create("Version", version_data)
 
         # Web-reviewable media creation
         ####################
@@ -317,9 +323,9 @@ class ShotgunCopyExporter(
                 raise
 
     def doFrame(self, src, dst):
-        hiero.core.log.info( "SG_Copy_Exporter. DoFrame" )
-        hiero.core.log.info( "  - source: " + str(src) )
-        hiero.core.log.info( "  - destination: " + str(dst) )
+        # print( "SG_Copy_Exporter. DoFrame" )
+        # print( "  - source: " + str(src) )
+        # print( "  - destination: " + str(dst) )
 
         # Find the base destination directory, if it doesn't exist create it
         dstdir = os.path.dirname(dst)
