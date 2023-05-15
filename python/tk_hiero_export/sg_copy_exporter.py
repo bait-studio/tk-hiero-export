@@ -247,12 +247,19 @@ class ShotgunCopyExporter(
         published_file_type = self.app.get_setting("plate_published_file_type")
         published_file_entity_type = sgtk.util.get_published_file_entity_type(self.app.sgtk)
 
-        # TODO - Run this for every collated item
         # Publish the main track item
-        resolved_export_path = SGVersionData["mainItem"]["sg_path_to_frames"]
         version_data = SGVersionData["mainItem"]
+        resolved_export_path = version_data["sg_path_to_frames"]
         thumbnail = SGThumbnailData["mainItem"]
         self._publishTrackItem(ctx, published_file_type, published_file_entity_type, resolved_export_path, thumbnail, version_data)
+        
+        # Publish each overlapping track item
+        for overlappingTrackItemID in SGVersionData["overlappingItems"]:
+            version_data = SGVersionData["overlappingItems"][overlappingTrackItemID]
+            resolved_export_path = version_data["sg_path_to_frames"]
+            thumbnail = SGThumbnailData["overlappingItems"].get(overlappingTrackItemID, None)
+            self._publishTrackItem(ctx, published_file_type, published_file_entity_type, resolved_export_path, thumbnail, version_data)
+        
     
     def _publishTrackItem(self, ctx, published_file_type, published_file_entity_type, resolved_export_path, thumbnail, version_data):
 
