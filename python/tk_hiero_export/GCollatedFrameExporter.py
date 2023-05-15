@@ -4,6 +4,8 @@ import math
 import os
 import os.path
 import re
+import json
+import sys
 
 import hiero.core
 import hiero.core.util
@@ -11,7 +13,7 @@ import hiero.core.log
 
 from hiero.exporters import FnShotExporter
 
-from .helpers import Collate
+from .helpers import Collate, ResolveHelpers
 
 class GCollatedFrameExporter(FnShotExporter.ShotTask):
   """ 
@@ -43,28 +45,26 @@ class GCollatedFrameExporter(FnShotExporter.ShotTask):
     # additionally store paths for all overlapping items
     for item in self._collateInfo["overlappingItems"]:
       self._buildFileSequencePaths(item, parentItemInfo=self._collateInfo["mainItem"])
-
+      
+    # In order to add the same collate functionality to sg_nuke_shot_export,
+    # we'll store this populated collate info in sys env as a JSON string.
+    # This prevents having to replicate a lot of this functionality in two places,
+    # and avoids needing to determine the correct export paths on a separate Hiero task.
+    # We'll store it under the main item id.
+    # before we do that we need to remove the trackitems as they aren't serialisable
+    newDict = {"mainItem":{"info":self._collateInfo["mainItem"]["info"]}, "overlappingItems":[]}
+    for overlappingItem in self._collateInfo["overlappingItems"]:
+      newDict["overlappingItems"].append({"info":overlappingItem["info"]})
+    os.environ["HIERO_COLLATE_INFO_{}".format(self._item.guid())] = json.dumps(newDict)
+    
   def _buildFileSequencePaths(self, collateInfo, parentItemInfo=None):
     """ Build the list of src/dst paths for each frame in a file sequence """
     # pull out the track items from the collate info
     item = collateInfo["trackItem"]
     parentItem = parentItemInfo["trackItem"] if parentItemInfo else None
 
-    # todo - determine resolved export path for the passed in item
-    # we can use Hiero's resolvers to do this.
-    # there's likely a way we can easily spawn a task here to use with FnResolveTable.resolve
-    # but I don't have time to figure that out right now.
-    # instead I'll duplicate the current resolve table, and override the values
-    # that actually change between the items we'll pass into this function.
-    # right now, that's just {track}
-    resolver = self._resolver
-    resolverDuplicate = resolver.duplicate()
-    resolverDuplicate.addResolver("{track}", "replaces track token with track name, filling spaces with underscores", item.parentTrack().name().replace(" ", "_"))
-    thisItemResolvedExportPath = resolverDuplicate.resolve(self, self._exportPath, isPath=True)
-    
-    # at this point the path is likely a mix of forward/backslashes due to how nuke/SG handle things differently.
-    # make them all forward slashes (i.e. nuke style)
-    thisItemResolvedExportPath = thisItemResolvedExportPath.replace("\\", "/")
+    # get the resolved export path
+    thisItemResolvedExportPath = ResolveHelpers.getResolvedPathForTrackItem(self, item)
     
     # store the resolved path in the collate info for use in start/finish task
     collateInfo["info"]["resolvedPath"] = thisItemResolvedExportPath

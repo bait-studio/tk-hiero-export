@@ -32,9 +32,7 @@ from sgtk.platform.qt import QtGui, QtCore
 from .base import ShotgunHieroObjectBase
 
 from . import (
-    HieroGetShot,
-    HieroUpdateVersionData,
-    HieroPostVersionCreation,
+    HieroGetShot
 )
 
 from .helpers import TaskHelpers

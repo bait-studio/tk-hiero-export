@@ -12,11 +12,11 @@ import re
 import os
 import sys
 import ast
+import json
 
 from hiero.core import nuke
 from hiero.exporters import FnNukeShotExporter
 from hiero.exporters import FnNukeShotExporterUI
-from .collating_exporter import CollatedShotPreset
 
 import sgtk
 from sgtk.platform.qt import QtGui, QtCore
@@ -24,6 +24,7 @@ from sgtk.platform.qt import QtGui, QtCore
 from .base import ShotgunHieroObjectBase
 from . import HieroGetExtraPublishData
 
+from .helpers import Collate, ResolveHelpers
 
 class ShotgunNukeShotExporterUI(
     ShotgunHieroObjectBase, FnNukeShotExporterUI.NukeShotExporterUI
@@ -127,16 +128,6 @@ class ShotgunNukeShotExporter(
         self._hero = None
         self._heroItem = None
 
-        if self._collate:
-
-            def keyFunc(item):
-                return (
-                    (sys.maxsize - item.timelineIn()) * 1000
-                ) + item.parent().trackIndex()
-
-            heroItem = max(self._collatedItems, key=keyFunc)
-            self._hero = heroItem.guid() == self._item.guid()
-            self._heroItem = heroItem
 
     def sequenceName(self):
         # override getSequence from the resolver to be collate friendly
@@ -179,9 +170,6 @@ class ShotgunNukeShotExporter(
         """
         # run base class implementation
         FnNukeShotExporter.NukeShotExporter.finishTask(self)
-        # Don't create PublishedFiles for non-hero collated items
-        if self._collate and not self._hero:
-            return
 
         # register publish
         # get context we're publishing to
@@ -313,10 +301,69 @@ class ShotgunNukeShotExporter(
 
             # put the old end Node back
             nodeList.append(oldScriptEnd)
+            
+        # Add any collated plates here
+        self._addCollatedPlatesToScript(nodeList)
+        
+        
+    def _addCollatedPlatesToScript(self, nodeList):
+        
+        # in the GCollatedFrameExporter we previously populated and stored collate info 
+        # for this track item in the os env, which is obviously terrible, but very helpful!
+        # lets pull it out of the env here in order to find our collated track items
+        envKey = "HIERO_COLLATE_INFO_{}".format(self._item.guid())
+        if not os.environ.get(envKey, None):
+            print("Could not find collated track info")
+            return
+        
+        shotCollateInfo = json.loads(os.environ.get(envKey))
+        if len(shotCollateInfo["overlappingItems"]) == 0:
+            return
+        
+        # the main read node will be the only read node in the script. ensure it also has it's first/last values set
+        # NOTE: frustratingly these are internal node representations only so knob values aren't subscriptable
+        mainRead = next((n for n in nodeList if "ReadNode" in str(n) and n.knobs().get("first", None) and n.knobs().get("last", None)), None)
+        if not mainRead:
+            print("Couldn't find main read")
+            return
+        
+        # get the main plate in/out
+        readIn = mainRead.knobs()["first"]
+        readOut = mainRead.knobs()["last"]
+        
+        # loop through all overlapping items
+        # only add each resolved path once
+        addedPaths = []
+        for collateInfo in shotCollateInfo["overlappingItems"]:
+            
+            # get the resolved path
+            resolvedPath = collateInfo["info"]["resolvedPath"]
+            
+            # if we've already added this seq, continue
+            if resolvedPath in addedPaths:
+                continue
+            
+            # Make a read node with that path
+            newRead = nuke.ReadNode(resolvedPath)
+            
+            # Set the in/out to match the main plate
+            newRead.setKnob("first", readIn)
+            newRead.setKnob("last", readOut)
+            newRead.setKnob("origfirst", readIn)
+            newRead.setKnob("origlast", readOut)
+            
+            # set the error to black frame
+            newRead.setKnob("on_error", "black")
+            
+            # add to the node list
+            nodeList.append(newRead)
+            
+            # store the resolved path so we only add that seq once
+            addedPaths.append(resolvedPath)
 
 
 class ShotgunNukeShotPreset(
-    ShotgunHieroObjectBase, FnNukeShotExporter.NukeShotPreset, CollatedShotPreset
+    ShotgunHieroObjectBase, FnNukeShotExporter.NukeShotPreset
 ):
     """
     Settings for the shotgun transcode step
@@ -326,7 +373,6 @@ class ShotgunNukeShotPreset(
     def __init__(self, name, properties):
         FnNukeShotExporter.NukeShotPreset.__init__(self, name, properties)
         self._parentType = ShotgunNukeShotExporter
-        CollatedShotPreset.__init__(self, self.properties())
 
         if "toolkitWriteNodes" in properties:
             # already taken care of by loading the preset
