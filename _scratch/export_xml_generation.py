@@ -126,7 +126,7 @@ def main():
   #Main plate path
   exportItem1 = _createExportStructureItem(
     "sg_copy_exporter",
-    "sequences/{sequence}/{shot}/editorial/plates/v{tk_version}/{shot}.####.{fileext}",
+    "sequences/{sequence}/{shot}/{step}/editorial/plates/v{tk_version}/{shot}.####.{fileext}",
     {
       "collateTracks":False,
       "collateShotNames":False,
@@ -140,10 +140,10 @@ def main():
   #Comp
   exportItem2 = _createExportStructureItem(
     "sg_nuke_shot_export",
-    "sequences/{sequence}/{shot}/work/nuke/{shot}_comp.v{tk_version}.{fileext}",
+    "sequences/{sequence}/{shot}/{step}/work/nuke/{shot}_comp.v{tk_version}.{fileext}",
     {
       "readPaths":[
-        {"SequenceItem":"sequences/{sequence}/{shot}/editorial/plates/v{tk_version}/{shot}.####.{fileext}"}
+        {"SequenceItem":"sequences/{sequence}/{shot}/{step}/editorial/plates/v{tk_version}/{shot}.####.{fileext}"}
       ],
       "writePaths":[],
       "timelineWriteNode":"",
@@ -163,7 +163,7 @@ def main():
   #Renders
   exportItem3 = _createExportStructureItem(
     "FnExternalRender",
-    "sequences/{sequence}/{shot}/work/nuke/renders/v{tk_version}/{shot}_comp.####.{fileext}",
+    "sequences/{sequence}/{shot}/{step}/work/nuke/renders/v{tk_version}/{shot}_comp.####.{fileext}",
     {
       "file_type": "exr",
     }
@@ -181,7 +181,7 @@ def main():
   print(xml.toprettyxml(indent ="\t"))
 
   #Write
-  outputPath = "/Users/mattbrealey/Desktop/SG_Export.xml"
+  outputPath = "c:/Users/Tom.tatchell/Desktop/SG_Export.xml"
   with open(outputPath, "w") as xmlFile:
     xml.writexml(xmlFile)
 
