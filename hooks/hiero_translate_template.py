@@ -39,8 +39,6 @@ class HieroTranslateTemplate(Hook):
         :rtype: str
         """
 
-        print('\n------Initial Values------')
-        print(f'template: {template},\noutput_type: {output_type}\n')
 
         # first convert basic fields
         mapping = {
@@ -50,21 +48,12 @@ class HieroTranslateTemplate(Hook):
             "{version}": "{tk_version}",
         }
 
-        print('\n------Mapping Values------')
-        print(f'mapping: {mapping}\n')
 
         # see if we have a value to use for Step
         try:
             task_filter = self.parent.get_setting("default_task_filter", "[]")
-            task_filter = ast.literal_eval(task_filter)
-            print('\n ------task_filter post literal eval Values------')
-            print(f'task_filter post ast.literal_eval: {task_filter}\n')          
+            task_filter = ast.literal_eval(task_filter)        
             for (field, op, value) in task_filter:
-                print('\n------Inside task filter for loop------')
-                print('------task_filter loop values------')
-                print(f'field: {field}')
-                print(f'op: {op}')
-                print(f'value: {value}')
                 if field == "step.Step.code":
                     mapping["{Step}"] = value
         except ValueError:
@@ -90,7 +79,4 @@ class HieroTranslateTemplate(Hook):
                 template_str = template_str.replace(
                     "{%s}" % name, key.str_from_value("FORMAT:#")
                 )
-        print('\n------------PRINTING TEMPLATE STRING FROM hiero_translate_template.py\n--------------------------------------------------------------------------\n')
-        print(template_str)
-        print('\nDONE\n------------------------------\n')
         return template_str

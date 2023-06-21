@@ -230,9 +230,6 @@ class HieroExport(Application):
             working_format = os.environ["SG_WORKING_FORMAT"].lower()
             plate_template = self.get_template("template_plate_path_{}".format(working_format))
             script_template = self.get_template("template_nuke_script_path")
-            print('\n\nscript_template\n\n--------------------------------------------------------------------------\n\n')
-            print(script_template)
-            print('\n------------------------------\n')
             render_template = self.get_template("template_nuke_render_path_{}".format(working_format))
 
 
@@ -271,13 +268,6 @@ class HieroExport(Application):
             exr_properties = self.get_setting("exr_write_node_properties")
 
             # generate the export template
-            # print('\n\nPRINTING TEMPLATE STRINGS\n\n--------------------------------------------------------------------------\n\n')
-            # print(norm_hiero_plate_template_string)
-            # print('\n---\n')
-            # print(norm_nuke_script_template_string)
-            # print('\n---\n')
-            # print(norm_nuke_render_template_string)
-            # print('\nDONE\n------------------------------\n')
             export_template = (
                     (
                         norm_hiero_plate_template_string,
