@@ -60,6 +60,8 @@ def createWebReviewable(exporter, versionInfo):
         frameOut,
         comment="The web-reviewable render",
         nukeVersion=nukeVersion,
+        pool='ingest',
+        secondaryPool='none',
         machineList=nukeMachineList,
         batchGroupName=batchGroupName,
         sameWorker=True
