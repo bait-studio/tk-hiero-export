@@ -32,6 +32,8 @@ def createWebReviewable(exporter, versionInfo):
     batchGroupName = batchGroupName = "{} | Ingest | {} | {}".format(versionInfo["code"], versionInfo["project"]["name"], submitTime)
     nukeVersion = "{}.{}".format(nuke.nuke.NUKE_VERSION_MAJOR, nuke.nuke.NUKE_VERSION_MINOR)
     nukeMachineList = []
+    ingestPool = 'ingest'
+    ingestScondaryPool = None
 
     # collate tasks
     tasks = []
@@ -60,8 +62,8 @@ def createWebReviewable(exporter, versionInfo):
         frameOut,
         comment="The web-reviewable render",
         nukeVersion=nukeVersion,
-        pool='ingest',
-        secondaryPool='none',
+        pool=ingestPool,
+        secondaryPool=ingestScondaryPool,
         machineList=nukeMachineList,
         batchGroupName=batchGroupName,
         sameWorker=True
