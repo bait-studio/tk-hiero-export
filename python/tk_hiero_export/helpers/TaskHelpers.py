@@ -1,4 +1,5 @@
 import nuke
+import hiero
 import os
 import sys
 import time
@@ -40,7 +41,12 @@ def createWebReviewable(exporter, versionInfo):
 
     # create task to generate web-reviewable nuke script from transcode templates
     outputMovPath = outputNukeScriptPath.replace(".nk", ".mov") #TODO - pull from template
+
+    # filter for ACES colour management transcode
     templateScriptPath = os.path.join(pathToBaitTasksFolder, "nukescripts", "TranscodeScriptExample.nk")
+    if 'aces' in hiero.core.projects()[0].extractSettings()['ocioConfigName']:
+        templateScriptPath = os.path.join(pathToBaitTasksFolder, "nukescripts", "TranscodeScriptACES.nk")
+
     nukeWebReviewableScriptCreationTask = BaitTasks.Tasks.Nuke.NukeGenerateScriptFromTranscodeTemplate(
         cleanedPathToFrames,
         outputMovPath,
