@@ -228,6 +228,10 @@ class ShotgunNukeShotExporter(
         # upload thumbnail for sequence
         self._upload_thumbnail_to_sg(sg_publish, self._thumbnail)
 
+        #TODO: try adding nuke script duplication here
+        self.app.log_debug(f'{"THIS IS WHERE NUKE SCRIPT DUPLICATION SHOULD HAPPEN" : ^40}')
+        self.app.log_debug(f'Nuke Script Path: {self._resolved_export_path}')
+
         # Log usage metrics
         try:
             self.app.log_metric("Shot Export", log_version=True)
@@ -343,6 +347,7 @@ class ShotgunNukeShotExporter(
             if resolvedPath in addedPaths:
                 continue
             
+            # TODO: set position in nuke script and backdrop
             # Make a read node with that path
             newRead = nuke.ReadNode(resolvedPath)
             
