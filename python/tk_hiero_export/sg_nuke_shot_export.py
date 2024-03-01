@@ -13,6 +13,7 @@ import os
 import sys
 import ast
 import json
+import shutil
 
 from hiero.core import nuke
 from hiero.exporters import FnNukeShotExporter
@@ -229,8 +230,31 @@ class ShotgunNukeShotExporter(
         self._upload_thumbnail_to_sg(sg_publish, self._thumbnail)
 
         #TODO: try adding nuke script duplication here
-        self.app.log_debug(f'{"THIS IS WHERE NUKE SCRIPT DUPLICATION SHOULD HAPPEN" : ^40}')
-        self.app.log_debug(f'Nuke Script Path: {self._resolved_export_path}')
+        self.app.log_debug(f'{"Generating Version Zero Script" : ^40}')
+        # Get current script path and name
+        scriptv1Path = self._resolved_export_path
+        scriptv1Name = os.path.basename(scriptv1Path)
+        self.app.log_debug(f'Nuke Script v001 Path: {scriptv1Path}')
+        # Generate script path and name for version zero
+        scriptv0Path = scriptv1Path.replace('.v001.', '.v000.')
+        scriptv0Name = os.path.basename(scriptv0Path)
+        self.app.log_debug(f'Nuke Script v000 Path: {scriptv0Path}')
+
+        # Copy file in place and version down from v001 to v000
+        shutil.copy2(scriptv1Path, scriptv0Path)
+        
+        #Modify file contents to update nuke root name to v000 and hiero metadata script path tag to v000
+        if not os.path.exists(scriptv0Path):
+            self.app.log_error("Version Zero Generation Failed")
+        else:
+            with open(scriptv0Path, "r") as file:
+                nukeScriptData = file.read()
+            nukeScriptData = nukeScriptData.replace(scriptv1Name, scriptv0Name)
+            with open(scriptv0Path, "w") as file:
+                file.write(nukeScriptData)
+            self.app.log_debug("Version Zero Sucessful!")
+
+        #TODO: Can the above two actions be combined into one? open scriptv1, search and replace, write scriptv0?
 
         # Log usage metrics
         try:
