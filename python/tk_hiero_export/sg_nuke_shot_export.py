@@ -229,32 +229,69 @@ class ShotgunNukeShotExporter(
         # upload thumbnail for sequence
         self._upload_thumbnail_to_sg(sg_publish, self._thumbnail)
 
-        #TODO: try adding nuke script duplication here
-        self.app.log_debug(f'{"Generating Version Zero Script" : ^40}')
+        # Version Zero Generation
         # Get current script path and name
         scriptv1Path = self._resolved_export_path
         scriptv1Name = os.path.basename(scriptv1Path)
-        self.app.log_debug(f'Nuke Script v001 Path: {scriptv1Path}')
-        # Generate script path and name for version zero
-        scriptv0Path = scriptv1Path.replace('.v001.', '.v000.')
-        scriptv0Name = os.path.basename(scriptv0Path)
-        self.app.log_debug(f'Nuke Script v000 Path: {scriptv0Path}')
+        # Only generate version zero from a v001
+        if '.v001' in scriptv1Name:
+            self.app.log_debug(f'Nuke Script v001 Path: {scriptv1Path}')
+            # Generate script path and name for version zero
+            scriptv0Path = scriptv1Path.replace('.v001.', '.v000.')
+            scriptv0Name = os.path.basename(scriptv0Path)
+            self.app.log_debug(f'Nuke Script v000 Path: {scriptv0Path}')
+            
+            #Modify file contents to update nuke root name to v000 and hiero metadata script path tag to v000
+            # Read the nuke v001 script
+            with open(scriptv1Path, "r") as file:
+                nukeScriptv1Data = file.read()
+                self.app.log_debug(f'Reading data from: {scriptv1Name}')
 
-        # Copy file in place and version down from v001 to v000
-        shutil.copy2(scriptv1Path, scriptv0Path)
-        
-        #Modify file contents to update nuke root name to v000 and hiero metadata script path tag to v000
-        if not os.path.exists(scriptv0Path):
-            self.app.log_error("Version Zero Generation Failed")
-        else:
-            with open(scriptv0Path, "r") as file:
-                nukeScriptData = file.read()
-            nukeScriptData = nukeScriptData.replace(scriptv1Name, scriptv0Name)
+            # Swap out any paths inside the nuke script
+            nukeScriptv0Data = nukeScriptv1Data.replace(scriptv1Name, scriptv0Name)
+
+            # Write the modified data to a version zero script.
             with open(scriptv0Path, "w") as file:
-                file.write(nukeScriptData)
-            self.app.log_debug("Version Zero Sucessful!")
+                file.write(nukeScriptv0Data)
+                self.app.log_debug(f'Writing data to: {scriptv0Name}')
+            
+                self.app.log_debug("Version Zero Sucessful!")
+            
+            # Publish v000
+            # Tweak to already establshed args to reflect v000
+            args['version_number'] = 000
+            args['path'] = scriptv0Path
+            args['name'] = scriptv0Name
 
-        #TODO: Can the above two actions be combined into one? open scriptv1, search and replace, write scriptv0?
+            self.app.log_debug("Register publish in ShotGrid: %s" % str(args))
+            sg_publish = sgtk.util.register_publish(**args)
+            if self._extra_publish_data is not None:
+                self.app.log_debug(
+                    "Updating SG %s %s"
+                    % (publish_entity_type, str(self._extra_publish_data))
+                )
+                self.app.shotgun.update(
+                    sg_publish["type"], sg_publish["id"], self._extra_publish_data
+                )
+            # call the publish data hook to allow for publish customization.
+            extra_publish_data = self.app.execute_hook(
+                "hook_get_extra_publish_data",
+                task=self,
+                base_class=HieroGetExtraPublishData,
+            )
+            if extra_publish_data is not None:
+                self.app.log_debug(
+                    "Updating SG %s %s" % (publish_entity_type, str(extra_publish_data))
+                )
+                self.app.shotgun.update(
+                    sg_publish["type"], sg_publish["id"], extra_publish_data
+                )
+
+            # upload thumbnail for sequence
+            self._upload_thumbnail_to_sg(sg_publish, self._thumbnail)
+            
+        else:
+            self.app.log_error("Version Zero Generation Skipped - Nuke script not v001")
 
         # Log usage metrics
         try:
