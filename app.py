@@ -306,7 +306,8 @@ class HieroExport(Application):
                 "exportTemplate": export_template,
                 "cutLength": True,
                 "startFrameIndex": 1001,
-                "startFrameSource": "Custom"
+                "startFrameSource": "Custom",
+                "cutHandles":8
             }
             preset = ShotgunShotProcessorPreset(name, properties)
             hiero.core.taskRegistry.removeProcessorPreset(name)
