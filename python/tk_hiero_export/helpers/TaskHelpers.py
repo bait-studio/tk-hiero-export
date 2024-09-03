@@ -43,9 +43,15 @@ def createWebReviewable(exporter, versionInfo):
     outputMovPath = outputNukeScriptPath.replace(".nk", ".mov") #TODO - pull from template
 
     # filter for ACES colour management transcode
+    # Sets default transcode script
     templateScriptPath = os.path.join(pathToBaitTasksFolder, "nukescripts", "TranscodeScriptExample.nk")
+    # If ACES color management; changes transcode script
     if 'aces' in hiero.core.projects()[0].extractSettings()['ocioConfigName']:
         templateScriptPath = os.path.join(pathToBaitTasksFolder, "nukescripts", "TranscodeScriptACES.nk")
+    # If project name == The Man In My Basement or SLogTest
+    if versionInfo["project"]["name"] == "The Man In My Basement" or versionInfo["project"]["name"] == "SLogTest":
+        templateScriptPath = os.path.join(pathToBaitTasksFolder, "nukescripts", "TranscodeScriptSLog.nk")
+
 
     nukeWebReviewableScriptCreationTask = BaitTasks.Tasks.Nuke.NukeGenerateScriptFromTranscodeTemplate(
         cleanedPathToFrames,
