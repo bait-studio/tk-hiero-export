@@ -218,8 +218,8 @@ class HieroExport(Application):
 
     def _add_dynamic_export_preset(self, overwrite):
         # first step is to get the working format from the current project
-        # Add Shotgun template
-        name = "SG Export"
+        # Add SG Export template
+        name = "SG Copy Export"
         localpresets = [
             preset.name() for preset in hiero.core.taskRegistry.localPresets()
         ]
@@ -313,7 +313,7 @@ class HieroExport(Application):
             hiero.core.taskRegistry.removeProcessorPreset(name)
             hiero.core.taskRegistry.addProcessorPreset(name, preset)
 
-            print("Added dynamic 'SG Export' template for project '{}' with working format '{}'.".format(os.environ["SG_PROJECT_NAME"], working_format))
+            print("Added dynamic 'SG Copy Export' template for project '{}' with working format '{}'.".format(os.environ["SG_PROJECT_NAME"], working_format))
 
     def _validate_hiero_export_template(self, template_str):
         """
