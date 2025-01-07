@@ -39,18 +39,21 @@ from tk_hiero_export import (
     ShotgunShotProcessorUI,
     ShotgunShotUpdater,
     ShotgunCopyPreset,
+    GTranscodePreset,
     ShotgunSymLinkPreset,
     ShotgunTranscodePreset,
     ShotgunNukeShotPreset,
     ShotgunAudioPreset,
     ShotgunShotUpdaterPreset,
     ShotgunCopyExporter,
+    GTranscodeExporter,
     ShotgunSymLinkExporter,
     ShotgunTranscodeExporter,
     ShotgunNukeShotExporter,
     ShotgunAudioExporter,
     ShotgunShotProcessorPreset,
     ShotgunCopyExporterUI,
+    GTranscodeExporterUI,
     ShotgunSymLinkExporterUI,
     ShotgunTranscodeExporterUI,
     ShotgunNukeShotExporterUI,
@@ -168,6 +171,11 @@ class HieroExport(Application):
         hiero.core.taskRegistry.registerTask(
             ShotgunCopyPreset, ShotgunCopyExporter
         )
+
+        hiero.core.taskRegistry.registerTask(
+            GTranscodePreset, GTranscodeExporter
+        )
+
         hiero.core.taskRegistry.registerTask(
             ShotgunSymLinkPreset, ShotgunSymLinkExporter
         )
@@ -185,6 +193,11 @@ class HieroExport(Application):
         hiero.ui.taskUIRegistry.registerTaskUI(
             ShotgunCopyPreset, ShotgunCopyExporterUI
         )
+
+        hiero.ui.taskUIRegistry.registerTaskUI(
+            GTranscodePreset, GTranscodeExporterUI
+        )
+
         hiero.ui.taskUIRegistry.registerTaskUI(
             ShotgunSymLinkPreset, ShotgunSymLinkExporterUI
         )
@@ -215,6 +228,7 @@ class HieroExport(Application):
 
         # add custom dynamic export preset - always overwrite
         self._add_dynamic_export_preset(True)
+        self._add_dynamic_transcode_export_preset(True)
 
     def _add_dynamic_export_preset(self, overwrite):
         # first step is to get the working format from the current project
@@ -304,6 +318,7 @@ class HieroExport(Application):
             properties = {
                 "exportRoot": os.environ["SG_PROJECT_ROOT"],
                 "exportTemplate": export_template,
+                "versionPadding": 3,
                 "cutLength": True,
                 "startFrameIndex": 1001,
                 "startFrameSource": "Custom",
@@ -314,6 +329,117 @@ class HieroExport(Application):
             hiero.core.taskRegistry.addProcessorPreset(name, preset)
 
             print("Added dynamic 'SG Copy Export' template for project '{}' with working format '{}'.".format(os.environ["SG_PROJECT_NAME"], working_format))
+
+
+    def _add_dynamic_transcode_export_preset(self, overwrite):
+        # first step is to get the working format from the current project
+        # Add SG Export template
+        name = "G|VFX Transcode Export"
+        localpresets = [
+            preset.name() for preset in hiero.core.taskRegistry.localPresets()
+        ]
+
+        # only add the preset if it is not already there - or if a reset to defaults is requested.
+        if overwrite or name not in localpresets:
+            # grab all our path templates
+            working_format = os.environ["SG_WORKING_FORMAT"].lower()
+            plate_template = self.get_template("template_plate_path_{}".format(working_format))
+            script_template = self.get_template("template_nuke_script_path")
+            render_template = self.get_template("template_nuke_render_path_{}".format(working_format))
+
+
+            # call the hook to translate them into hiero paths, using hiero keywords
+            hiero_plate_template_string = self.execute_hook(
+                "hook_translate_template", template=plate_template, output_type="plate"
+            )
+
+            nuke_script_template_string = self.execute_hook(
+                "hook_translate_template",
+                template=script_template,
+                output_type="script",
+            )
+
+            nuke_render_template_string = self.execute_hook(
+                "hook_translate_template",
+                template=render_template,
+                output_type="render",
+            )
+
+            # check so that no unknown keywords exist in the templates after translation
+            self._validate_hiero_export_template(hiero_plate_template_string)
+            self._validate_hiero_export_template(nuke_script_template_string)
+            self._validate_hiero_export_template(nuke_render_template_string)
+
+            # switch to linux slashes
+            norm_hiero_plate_template_string = os.path.normpath(hiero_plate_template_string).replace(os.path.sep, "/")
+            norm_nuke_script_template_string = os.path.normpath(nuke_script_template_string).replace(os.path.sep, "/")
+            norm_nuke_render_template_string = os.path.normpath(nuke_render_template_string).replace(os.path.sep, "/")  
+            # print(norm_hiero_plate_template_string)
+            # print(norm_nuke_script_template_string)
+            # print(norm_nuke_render_template_string)
+
+            # get the format settings to use
+            dpx_properties = self.get_setting("dpx_write_node_properties")
+            exr_properties = self.get_setting("exr_write_node_properties")
+
+            # Add custom default properties
+            exr_properties['compression'] = "Zip (1 scanline)"
+            exr_properties['colorspace'] = "linear"
+
+            # generate the export template
+            export_template = (
+                    (
+                        norm_hiero_plate_template_string,
+                        GTranscodePreset(
+                            "", 
+                            {
+                                "file_type": working_format,
+                                "channels": "all", 
+                                "exr": exr_properties, 
+                                "dpx": dpx_properties,
+                            }
+                        ),
+                    ),
+                    (
+                        norm_nuke_script_template_string,
+                        ShotgunNukeShotPreset(
+                            "", 
+                            {
+                                "readPaths": [norm_hiero_plate_template_string], 
+                                "writePaths": [],
+                                "toolkitWriteNodes": ['Toolkit Node: {} ("{}")'.format(working_format.upper(), working_format)]
+                            }
+                        ),
+                    ),
+                    (
+                        norm_nuke_render_template_string,
+                        FnExternalRender.NukeRenderPreset(
+                            "", 
+                            {
+                                "file_type": working_format, 
+                                "exr": exr_properties, 
+                                "dpx": dpx_properties
+                            }
+                        ),
+                    ),
+                    
+                )
+
+            # and set the default properties to be based off of those templates
+            properties = {
+                "exportRoot": os.environ["SG_PROJECT_ROOT"],
+                "exportTemplate": export_template,
+                "versionPadding": 3,
+                "cutLength": True,
+                "startFrameIndex": 1001,
+                "startFrameSource": "Custom",
+                "cutHandles":8
+            }
+            preset = ShotgunShotProcessorPreset(name, properties)
+            hiero.core.taskRegistry.removeProcessorPreset(name)
+            hiero.core.taskRegistry.addProcessorPreset(name, preset)
+
+            print("Added dynamic 'G|VFX Transcode Export' template for project '{}' with working format '{}'.".format(os.environ["SG_PROJECT_NAME"], working_format))
 
     def _validate_hiero_export_template(self, template_str):
         """

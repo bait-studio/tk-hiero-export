@@ -63,6 +63,13 @@ from .sg_transcode_exporter import (
     ShotgunTranscodeExporter,
     ShotgunTranscodePreset,
 )
+
+from .sg_gvfx_transcode_exporter import (
+    GTranscodeExporterUI,
+    GTranscodeExporter,
+    GTranscodePreset
+)
+
 from .sg_nuke_shot_export import (
     ShotgunNukeShotExporterUI,
     ShotgunNukeShotExporter,
