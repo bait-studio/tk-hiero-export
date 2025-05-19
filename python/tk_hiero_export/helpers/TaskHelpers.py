@@ -94,7 +94,7 @@ def createWebReviewable(exporter, versionInfo):
     runWebReviewableUploadAndStatusUpdateShotgunTasks = BaitTasks.Tasks.Deadline.RunBaitTasks(
         "Upload Web-Reviewable",
         [BaitTasks.Tasks.ShotGrid.ShotGridUpdater([uploadWebReviewableVersionMediaTask])], 
-        "2.7",
+        "3.11",
         "Uploading of web-reviewable media",
         machineList=nukeMachineList,
         batchGroupName=batchGroupName,
